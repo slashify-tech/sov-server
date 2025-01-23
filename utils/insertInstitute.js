@@ -1,22 +1,32 @@
-import mongoose from 'mongoose';
-import { Institute } from "../models/institute.model.js"; // Adjust the import path if necessary
-import connectDb from '../db/index.js';
-import {instituteData} from "./instituteData.js"
+// import mongoose from 'mongoose';
+// import connectDb from '../db/index.js';
+// import { Institute } from '../models/institute.model.js';
+// import { instituteData } from './instituteData.js';
+// import { updatedData } from './UpdatedInstituteData.js';
 
-async function insertInstitutes() {
-  try {
-    // Connect to the database
-    await connectDb();
+// async function updateInstitutes() {
+//   try {
+//     await connectDb();
 
-    // Insert data into the database
-    await Institute.insertMany(instituteData);
-    console.log('Institutes inserted successfully!');
-  } catch (error) {
-    console.error('Error inserting institutes:', error);
-  } finally {
-    // Disconnect from the database
-    mongoose.connection.close();
-  }
-}
+//     const institutes = instituteData.flat();
 
-insertInstitutes();
+//     for (const institute of institutes) {
+//       await Institute.updateOne(
+//         { instituteName: institute.instituteName },
+//         {
+//           $set: {
+//             websiteUrl: institute.websiteUrl,
+//           },
+//         }
+//       );
+//     }
+
+//     console.log('Institutes updated successfully with website URLs!');
+//   } catch (error) {
+//     console.error('Error updating institutes:', error);
+//   } finally {
+//     mongoose.connection.close();
+//   }
+// }
+
+// updateInstitutes();

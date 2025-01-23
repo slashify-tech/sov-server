@@ -18,7 +18,7 @@ const InstituteSchema = new Schema(
       trim: true,
     },
     offerLetterPrice: {
-      type: Number,
+      type: String,
     },
     aboutCollegeOrInstitute: {
       type: String,
@@ -41,6 +41,9 @@ const InstituteSchema = new Schema(
     instituteStatus: {
       type: String,
     },
+    websiteUrl: {
+      type: String,
+    }
   },
   {
     timestamps: true, // Automatically add createdAt and updatedAt fields
