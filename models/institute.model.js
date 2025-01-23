@@ -43,7 +43,8 @@ const InstituteSchema = new Schema(
     },
     websiteUrl: {
       type: String,
-    }
+    },
+  
   },
   {
     timestamps: true, // Automatically add createdAt and updatedAt fields
