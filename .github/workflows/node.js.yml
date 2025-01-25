@@ -27,6 +27,11 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     - run: npm ci
-    - run: |
-        touch .env
-        echo "${{ secrets.PROD_ENV_FILE }}" > .env
+    - name: Create .env file
+      run: |
+          touch .env
+          echo "${{secrets.PROD_ENV_FILE}}" >> .env
+
+    - name: Test printing your secret (Remove this step in production)
+      run: |
+          cat .env
