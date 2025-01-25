@@ -29,8 +29,9 @@ jobs:
     - run: npm ci
     - name: Create .env file
       run: |
-          touch .env
-          echo "${{secrets.PROD_ENV_FILE}}" >> .env
+        cat <<EOF > .env
+        ${{ secrets.PROD_ENV_FILE }}
+        EOF
 
     - name: Test printing your secret (Remove this step in production)
       run: |
