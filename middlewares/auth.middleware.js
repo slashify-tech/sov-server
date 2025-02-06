@@ -77,8 +77,17 @@ const verifyAdmin = asyncHandler(async (req, res, next) => {
         "-password "
       );
     }
+    // else if(decodeToken.role === "2"){
+    //   user = await TeamMember.findById(decodeToken.id).select(
+    //     "-password "
+    //   );
+    // }else if(decodeToken.role === "3"){
+    //   user = await TeamMember.findById(decodeToken.id).select(
+    //     "-password "
+    //   );
+    // }
 
-    if (user.role !== "0" && user.role !== "1") {
+    if (user.role !== "0" && user.role !== "1" && user.role !== "2" && user.role !== "3") {
       return res
         .status(401)
         .json(new ApiResponse(401, {}, "Unauthorized user"));
