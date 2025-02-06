@@ -6,6 +6,7 @@ import {
   changePassword,
   editProfile,
   editTeamMember,
+  getAllPartner,
   getAllTeamMembers,
   getProfileData,
   softDeleteTeamMember,
@@ -23,5 +24,7 @@ router.route("/add-team-member").post(verifyAdmin, addTeamMember);
 router.route("/edit-team-member/:teamID").put(verifyAdmin, editTeamMember);
 router.route("/delete-team-member/:teamID").patch(verifyAdmin, softDeleteTeamMember);
 router.route("/get-team-members").get(verifyAdmin, getAllTeamMembers);
+router.route("/get-partner-lists").get(verifyAdmin, getAllPartner);
+
 
 export default router;
