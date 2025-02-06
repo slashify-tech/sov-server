@@ -23,6 +23,7 @@ import { Withdrawal } from "../models/withdrawal.model.js";
 import { Ticket } from "../models/ticket.model.js";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+import { AirTicketing } from "../models/airTicketingModel.js";
 
 dotenv.config();
 
@@ -845,6 +846,13 @@ const deleteStudentData = asyncHandler(async (req, res) => {
         { $set : { deleted: true } },
         { session }
       );
+
+      await AirTicketing.updateMany(
+        { userId : studentInfo?.studentId }, //student_id
+        { $set : { deleted: true } },
+        { session }
+      );
+
     }else if (studentInfo.agentId) {
       firstName = studentInfo.personalInformation.firstName;
       email = studentInfo.personalInformation.email;
