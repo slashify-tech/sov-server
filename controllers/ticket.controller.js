@@ -12,7 +12,7 @@ import { Company } from "../models/company.model.js";
 import { Agent } from "../models/agent.model.js";
 import path from "path";
 import fs from "fs";
-import { parse as json2csv } from "json2csv"
+import { parse as json2csv } from "json2csv";
 import { agentSideTicketApResolved, studentSideTicketResolved } from "../utils/mailTemp.js";
 import { fileURLToPath } from "url";
 import { sendEmail } from "../utils/sendMail.js";
