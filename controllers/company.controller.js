@@ -398,15 +398,14 @@ const getCompanyData = asyncHandler(async (req, res) => {
 
   const agentEmail = agent.accountDetails?.founderOrCeo?.email || "N/A";
   const agentPhone = agent.accountDetails?.founderOrCeo?.phone || "N/A";
-
-  // Combine company data with agentEmail and agentPhone
+  const agentState = agent.residenceAddress?.state|| "N/A";
   const responseData = {
     ...company.toObject(), // Convert the company document to a plain object
     agentEmail,
     agentPhone,
+    agentState
   };
 
-  // Return the combined data in the response
   return res.status(200).json(new ApiResponse(200, responseData, "Company data fetched successfully"));
 });
 

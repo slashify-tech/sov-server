@@ -40,9 +40,12 @@ const partnerTeamSchema = new Schema(
     
     teamId:{
       type: String,
-      required: false,
+      required: true,
     },
-
+    createdBy:{
+      type: String,
+      required: true,
+    },
   },
   {
     timestamps: true,

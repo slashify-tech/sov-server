@@ -285,6 +285,7 @@ const editProfile = asyncHandler(async (req, res) => {
 
 const getProfileData = asyncHandler(async (req, res) => {
   let id;
+  
   if (req.params.teamId && req.params.teamId !== "") {
     id = req.params.teamId;
   } else {
@@ -324,7 +325,8 @@ const addTeamMember = asyncHandler(async (req, res) => {
     profilePicture,
     dateOfJoining,
     password,
-    roleType
+    roleType,
+    createdBy
   } = payload;
     let existingTeamMember
     if(roleType === "1"){
@@ -370,6 +372,7 @@ const ModelCollection = roleType === "0" ? TeamMember : roleType === "2"  ? Part
    phone,
    profilePicture,
    dateOfJoining,
+   createdBy
  });
   const savedTeamMember = await newTeamMember.save();
 
@@ -539,16 +542,18 @@ const getAllTeamMembers = asyncHandler(async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const { role, residenceAddress } = req.user;
-    const location = residenceAddress?.state; 
-
-    const isPartnerRole = role === "2" && location;
+    const { role, _id } = req.user;
+    const isPartnerRole = role === "2" && _id;
     const Model = isPartnerRole ? ParntnerTeamMember : TeamMember;
+
     const searchCondition = {
       isDeleted: false,
       $expr: { $eq: ["$role", isPartnerRole ? "3" : "1"] },
     };
-    
+
+    if (isPartnerRole) {
+      searchCondition.createdBy = _id;
+    }
 
     if (req.query.searchQuery) {
       const regex = { $regex: req.query.searchQuery, $options: "i" };
@@ -657,6 +662,78 @@ const getAllPartner = asyncHandler(async (req, res) => {
       );
   }
 });
+const getPartnerEmployees = asyncHandler(async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json(new ApiResponse(400, {}, "User ID is required"));
+    }
+
+    const searchCondition = {
+      isDeleted: false,
+      createdBy: userId, 
+    };
+
+    if (req.query.searchQuery) {
+      const regex = { $regex: req.query.searchQuery, $options: "i" };
+      searchCondition.$or = [
+        { firstName: regex },
+        { lastName: regex },
+        { email: regex },
+        { phone: regex },
+        { teamId: regex },
+      ];
+    }
+
+    const [totalPartnerEmployee, partnerEmployee] = await Promise.all([
+      ParntnerTeamMember.countDocuments(searchCondition),
+      ParntnerTeamMember.find(searchCondition)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
+    if (!partnerEmployee.length) {
+      return res.status(404).json(new ApiResponse(404, {}, "No employees found"));
+    }
+
+    const totalPages = Math.ceil(totalPartnerEmployee / limit);
+
+    return res.status(200).json(
+      new ApiResponse(200, {
+        total: totalPartnerEmployee,
+        currentPage: page,
+        previousPage: page > 1 ? page - 1 : null,
+        nextPage: page < totalPages ? page + 1 : null,
+        totalPages,
+        limit,
+        partnerEmployee,
+      }, "Partner employees fetched successfully")
+    );
+  } catch (error) {
+    console.error("Error fetching partner employees:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, {}, "An error occurred while fetching partner employees"));
+  }
+});
+const getProfileDataById = asyncHandler(async (req, res) => {
+  const {id} = req.query
+  const user = await Admin.findById(id).select("-password");
+
+  if (!user) {
+    return res.status(404).json(new ApiResponse(404, {}, "user not found"));
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "data fetched successfull"));
+});
 
 export {
   adminLogin,
@@ -668,5 +745,7 @@ export {
   editTeamMember,
   addTeamMember,
   getAllTeamMembers,
-  getAllPartner
+  getAllPartner,
+  getPartnerEmployees,
+  getProfileDataById
 };
