@@ -40,6 +40,7 @@ import mongoose from "mongoose";
 import { Withdrawal } from "../models/withdrawal.model.js";
 import { fileURLToPath } from "url";
 import { restoreDeletedStatus } from "../helpers/restoreDeletedStatus.js";
+import { AirTicketing } from "../models/airTicketingModel.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -2422,6 +2423,12 @@ const deleteAgent = asyncHandler(async (req, res) => {
     await Ticket.updateMany(
       { createdBy: agentId },
       { $set: { deleted: true } },
+      { session }
+    );
+    
+    await AirTicketing.updateMany(
+      {userId : agentId },
+      { $set : { deleted: true } },
       { session }
     );
 
