@@ -1,6 +1,6 @@
 import { Notifications } from "../models/notification.model.js";
 
-export const markAllNotificationsAsSeen = async (recieverId, type, country, state) => {
+export const markAllNotificationsAsSeen = async (recieverId, type, country, state, isPartner) => {
   try {
     let query;
 
@@ -26,6 +26,10 @@ export const markAllNotificationsAsSeen = async (recieverId, type, country, stat
       change = { status: "seen" };
     }else {
       change = { isRead: true, status: "seen" };
+    }
+
+    if(isPartner === "partner"){
+      change.isSeenBy = "partner";
     }
 
     const result = await Notifications.updateMany(query, change);
@@ -174,13 +178,19 @@ export const countUnseenForUser = async (id) => {
   }
 };
 
-export const countUnseenForAdmin = async (country,state) => {
+export const countUnseenForAdmin = async (country,state, isPartner) => {
   try {
-    const count = await Notifications.countDocuments({
+
+    let query = {
       "recipient.userId": { $exists: false },
       "recipient.role": "0",
-      "status": "unseen"
-    });
+    };
+
+    if(isPartner === "partner"){
+      query.isSeenBy = "partner";
+    }else{
+      query.status = "unseen"
+    }
 
     // If country or state are provided, add them to the query
     if (country) {
@@ -190,6 +200,8 @@ export const countUnseenForAdmin = async (country,state) => {
     if (state) {
       query.state = { $regex: new RegExp(`^${state}$`, "i") }; // Case-insensitive state match
     }
+
+    const count = await Notifications.countDocuments(query);
 
     if (!count) {
       console.error("notifications for users not found!");
