@@ -339,7 +339,7 @@ class SocketService {
       });
 
       socket.on("GET_NOTIFICATIONS_FOR_PARTNER", async ({page, limit}) => {
-        if (!["0", "1"].includes(decryptedDetails.role)) return;
+        if (!["4", "5"].includes(decryptedDetails.role)) return;
         const notifications = await getNotificationsForAdmin(page, limit, decryptedDetails?.country || undefined, decryptedDetails?.state || undefined, decryptedDetails.role);
 
         this.socketServer
