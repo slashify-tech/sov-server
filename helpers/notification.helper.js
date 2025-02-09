@@ -226,8 +226,8 @@ export const createNotification = async (notification) => {
       isRead: false,
       pathData: notification.pathData || {},
       routePath: notification.routePath || "/",
-      state: notification.state,
-      country: notification.country
+      state: notification?.state?.toLowerCase(),
+      country: notification?.country?.toLowerCase()
     });
 
     newNotification = await newNotification.save();
