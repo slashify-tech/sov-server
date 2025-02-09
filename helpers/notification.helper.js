@@ -1,6 +1,6 @@
 import { Notifications } from "../models/notification.model.js";
 
-export const markAllNotificationsAsSeen = async (recieverId, type) => {
+export const markAllNotificationsAsSeen = async (recieverId, type, country, state) => {
   try {
     let query;
 
@@ -10,6 +10,14 @@ export const markAllNotificationsAsSeen = async (recieverId, type) => {
     } else {
       // If senderId is undefined, target notifications with no recipient.userId
       query = { "recipient.userId": { $exists: false } };
+    }
+    // If country or state are provided, add them to the query
+    if (country) {
+      query.country = country;
+    }
+
+    if (state) {
+      query.state = state;
     }
 
     let change = {}
@@ -162,13 +170,22 @@ export const countUnseenForUser = async (id) => {
   }
 };
 
-export const countUnseenForAdmin = async () => {
+export const countUnseenForAdmin = async (country,state) => {
   try {
     const count = await Notifications.countDocuments({
       "recipient.userId": { $exists: false },
       "recipient.role": "0",
       "status": "unseen"
     });
+
+    // If country or state are provided, add them to the query
+    if (country) {
+      query.country = country;
+    }
+
+    if (state) {
+      query.state = state;
+    }
 
     if (!count) {
       console.error("notifications for users not found!");
