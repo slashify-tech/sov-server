@@ -49,4 +49,4 @@ const partnerSchema = new Schema(
   }
 );
 
-export const Partner = Admin.discriminator("2", partnerSchema);
+export const Partner = Admin.discriminator("4", partnerSchema);

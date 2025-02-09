@@ -52,4 +52,4 @@ const partnerTeamSchema = new Schema(
   }
 );
 
-export const ParntnerTeamMember = Admin.discriminator("3", partnerTeamSchema);
+export const ParntnerTeamMember = Admin.discriminator("5", partnerTeamSchema);

@@ -368,7 +368,7 @@ const getAllApplications = asyncHandler(async (req, res) => {
 
     const [students, agents] = await Promise.all([
       StudentInformation.find({ studentId: { $in: userIdList }, "residenceAddress.state": location }, "studentId").lean(),
-      Company.find({ agentId: { $in: userIdList }, "residenceAddress.state": location }, "agentId").lean(),
+      Company.find({ agentId: { $in: userIdList }, "companyDetails.province": location }, "agentId").lean(),
     ]);
 
     // Step 3: Extract filtered user IDs
@@ -1280,7 +1280,7 @@ const getTotalApplicationCount = asyncHandler(async (req, res) => {
     const userIds = institutionUsers.map((inst) => inst.userId);
 
     const agentUsers = await Agent.find(
-      { _id: { $in: userIds }, "residenceAddress.state": location },
+      { _id: { $in: userIds }, "companyDetails.province": location },
       { _id: 1 }
     );
     const agentUserIds = agentUsers.map((agent) => agent._id.toString());
@@ -1555,8 +1555,8 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
       const validAgentIds = [];
 
       for (const { agentId } of agentIds) {
-        const agent = await Agent.findById(agentId).select("residenceAddress.state").lean();
-        if (agent?.residenceAddress?.state === req.user.residenceAddress.state) {
+        const agent = await Agent.findById(agentId).select("companyDetails.province").lean();
+        if (agent?.companyDetails.province === req.user.residenceAddress.state) {
           validAgentIds.push(agentId);
         }
       }
@@ -2126,7 +2126,7 @@ const getAllStudents = asyncHandler(async (req, res) => {
         $match: {
           $or: [
             { "residenceAddress.state": location },
-            { "agentDetails.residenceAddress.state": location },
+            { "agentDetails.companyDetails.province": location },
           ],
         },
       }
@@ -2260,7 +2260,7 @@ const getAllAgent = asyncHandler(async (req, res) => {
       { $unwind: { path: "$agentDetails", preserveNullAndEmptyArrays: true } },
       {
         $match: {
-          "agentDetails.residenceAddress.state": location,
+          "agentDetails.companyDetails.province": location,
         },
       }
     );
@@ -2876,7 +2876,7 @@ const getTotalApplicationOverviewForAdmin = asyncHandler(async (req, res) => {
     const userIds = institutionUsers.map((inst) => inst.userId);
 
     const agentUsers = await Agent.find(
-      { _id: { $in: userIds }, "residenceAddress.state": location },
+      { _id: { $in: userIds }, "companyDetails.province": location },
       { _id: 1 }
     );
     const agentUserIds = agentUsers.map((agent) => agent._id.toString());
@@ -2948,7 +2948,7 @@ const getTotalUsersCount = asyncHandler(async (req, res) => {
     const agentIds = companyAgents.map((company) => company.agentId);
 
     const agentUsers = await Agent.find(
-      { _id: { $in: agentIds }, "residenceAddress.state": location },
+      { _id: { $in: agentIds }, "companyDetails.province": location },
       { _id: 1 }
     );
     const filteredAgentIds = agentUsers.map((agent) => agent._id.toString());
@@ -3040,7 +3040,7 @@ const getApplicationMonthlyCount = asyncHandler(async (req, res) => {
     const userIds = institutionUsers.map((inst) => inst.userId);
 
     const agentUsers = await Agent.find(
-      { _id: { $in: userIds }, "residenceAddress.state": location },
+      { _id: { $in: userIds }, "companyDetails.province": location },
       { _id: 1 }
     );
     const agentUserIds = agentUsers.map((agent) => agent._id.toString());

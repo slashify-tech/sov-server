@@ -60,16 +60,23 @@ export const markNotificationAsRead = async (notificationId) => {
   }
 };
 
-export const getNotificationsForAdmin = async ( page = 1, limit = 10, country, state ) => {
+export const getNotificationsForAdmin = async ( page = 1, limit = 10, country, state, adminRole ) => {
   try {
     const skip = (page - 1) * limit;
-    const query = {
+    if ((adminRole === "4" || adminRole === "5") && !country && !state) {
+      return { notifications: [], currentPage: page, totalPages: 0, totalNotifications: 0, nextPage: null, prevPage: null, hasNextPage: false, hasPrevPage: false };
+    }
+
+    let query = {
       "recipient.userId": { $exists: false },
       "recipient.role": "0",
     };
-    
-    if (country) query.country = country;
-    if (state) query.state = state;
+
+    if (adminRole === "4" || adminRole === "5") {
+      query.$or = [];
+      if (country) query.$or.push({ country });
+      if (state) query.$or.push({ state });
+    }
     
     const notifications = await Notifications.find(query)
       .sort({ createdAt: -1 })

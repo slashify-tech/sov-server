@@ -12,6 +12,10 @@ import bcrypt from "bcrypt";
 import { adminSchema } from "../validators/teamMember.validator.js";
 import { TeamMember } from "../models/team.model.js";
 import {
+  accountCredentialsPartner,
+  accountCredentialsPartnerEmployee,
+  accountCredentialsPartnerEmployeeUpdate,
+  accountCredentialsPartnerUpdate,
   accountCredentialsTeam,
   accountUpdatedTeam,
 } from "../utils/mailTemp.js";
@@ -50,7 +54,7 @@ async function generatePartnerId() {
 
   const matchingCount = await Partner.countDocuments({
     partnerId: { $regex: `^${baseId}` },
-    role: "2",
+    role: "4",
   });
 
   const newCount = matchingCount + 1;
@@ -70,7 +74,7 @@ async function generatePartnerTeamId() {
 
   const matchingCount = await ParntnerTeamMember.countDocuments({
     teamId: { $regex: `^${baseId}` },
-    role: "3",
+    role: "5",
   });
 
   const newCount = matchingCount + 1;
@@ -94,15 +98,15 @@ const adminLogin = asyncHandler(async (req, res) => {
       email: payload.email.trim().toLowerCase(),
       role: "1",
     });
-  } else if (payload.role === "2") {
+  } else if (payload.role === "4") {
     user = await Admin.findOne({
       email: payload.email.trim().toLowerCase(),
-      role: "2",
+      role: "4",
     });
-  } else if (payload.role === "3") {
+  } else if (payload.role === "5") {
     user = await Admin.findOne({
       email: payload.email.trim().toLowerCase(),
-      role: "3",
+      role: "5",
     });
   } else {
     user = await Admin.findOne({
@@ -305,7 +309,7 @@ const getProfileData = asyncHandler(async (req, res) => {
 const addTeamMember = asyncHandler(async (req, res) => {
   const payload = req.body;
   const validation = adminSchema.safeParse(payload);
-  if (req.user.role !== "0" && req.user.role !=="2") {
+  if (req.user.role !== "0" && req.user.role !=="4") {
     return res.status(403).json(new ApiResponse(403, {}, "Unauthorized"));
   }
   if (!validation.success) {
@@ -333,11 +337,11 @@ const addTeamMember = asyncHandler(async (req, res) => {
       existingTeamMember = await TeamMember.findOne({
         email: email.toLowerCase().trim(),
       });
-    }else if(roleType === "2"){
+    }else if(roleType === "4"){
       existingTeamMember = await Partner.findOne({
         email: email.toLowerCase().trim(),
       });
-    }else if(roleType === "3"){
+    }else if(roleType === "5"){
       existingTeamMember = await ParntnerTeamMember.findOne({
         email: email.toLowerCase().trim(),
       });
@@ -348,7 +352,7 @@ const addTeamMember = asyncHandler(async (req, res) => {
       .status(409)
       .json(new ApiResponse(409, {}, "Email already in use"));
   }
-  const teamId = roleType === "1" ? await  generateTeamMemberId() : roleType === "2" ? await generatePartnerId() : await generatePartnerTeamId()
+  const teamId = roleType === "1" ? await  generateTeamMemberId() : roleType === "4" ? await generatePartnerId() : await generatePartnerTeamId()
   let hashedPassword;
 
   if (password) {
@@ -356,12 +360,12 @@ const addTeamMember = asyncHandler(async (req, res) => {
   }
 let newTeamMember;
 
-const ModelCollection = roleType === "0" ? TeamMember : roleType === "2"  ? Partner : ParntnerTeamMember 
+const ModelCollection = roleType === "1" ? TeamMember : roleType === "4"  ? Partner : ParntnerTeamMember 
 
   newTeamMember = new ModelCollection({
    role: roleType,
    password: hashedPassword,
-   teamId,
+   [roleType === "4" ? "partnerId" : "teamId"]:  teamId,
    residenceAddress,
    firstName,
    lastName,
@@ -375,20 +379,40 @@ const ModelCollection = roleType === "0" ? TeamMember : roleType === "2"  ? Part
    createdBy
  });
   const savedTeamMember = await newTeamMember.save();
+   const partnerData = await Partner.findById(createdBy)
+  
 
-  const tempemail = accountCredentialsTeam(
-    teamId,
-    firstName,
-    email,
-    password,
-    "https://sovportal.in/admin/role/auth/login"
-  );
+const roleConfig = {
+  "1": {
+    template: accountCredentialsTeam,
+    url: "https://sovportal.in/admin/role/auth/login",
+    subject: "Portal Account Credentials – Welcome to the Team",
+  },
+  "4": {
+    template: accountCredentialsPartner,
+    url: "https://sovportal.in/province/login",
+    subject: ":Portal Account Credentials – Welcome to the Partner Team",
+  },
+  "5": {
+    template: accountCredentialsPartnerEmployee,
+    url: "https://sovportal.in/province/login",
+    extraParams: [partnerData.firstName, partnerData.email],
+    subject: "Portal Account Credentials – Welcome to the Team",
+  },
+};
+
+if (roleConfig[roleType]) {
+  const { template, url, extraParams = [], subject } = roleConfig[roleType];
+  const emailContent = template(teamId, firstName, email, password, url, ...extraParams);
+  
   await sendEmail({
     to: email,
-    subject: `Portal Account Credentials – Welcome to the Team`,
-    htmlContent: tempemail,
+    subject: subject, 
+    htmlContent: emailContent,
   });
+}
 
+  
   return res
     .status(201)
     .json(
@@ -400,7 +424,7 @@ const editTeamMember = asyncHandler(async (req, res) => {
   const { teamID } = req.params;
   const payload = req.body;
 
-  if (req.user.role !== "0"  && req.user.role !== "2") {
+  if (req.user.role !== "0"  && req.user.role !== "4") {
     return res.status(403).json(new ApiResponse(403, {}, "Unauthorized"));
   }
 
@@ -423,15 +447,17 @@ const editTeamMember = asyncHandler(async (req, res) => {
     profilePicture,
     dateOfJoining,
     password,
+    createdBy
   } = payload;
 
   try {
     // Check if the team member exists
-    const existingTeamMember = await TeamMember.findOne({ _id: teamID });
+    let ModelCollection =  req.user.role === "0" && req.query.userType === "team" ? TeamMember :  req.user.role === "0" && req.query.userType === "partner" ? Partner  : req.user.role === "4" ? ParntnerTeamMember : null 
+    const existingTeamMember = await ModelCollection.findOne({ _id: teamID });
     if (!existingTeamMember) {
       return res
         .status(404)
-        .json(new ApiResponse(404, {}, "Team member not found"));
+        .json(new ApiResponse(404, {}, "Profile not found"));
     }
 
     if (firstName) existingTeamMember.firstName = firstName;
@@ -461,6 +487,37 @@ const editTeamMember = asyncHandler(async (req, res) => {
         existingTeamMember.email = newEmail;
 
         // Send account update email
+        const partnerData = await Partner.findById(createdBy)
+        const roleConfig = {
+          "1": {
+            template: accountUpdatedTeam,
+            url: "https://sovportal.in/admin/role/auth/login",
+            subject: "Your Portal Account Data Updated Successfully",
+          },
+          "4": {
+            template: accountCredentialsPartnerUpdate,
+            url: "https://sovportal.in/province/login",
+            subject: ":Partner Account Update - Important Information",
+          },
+          "5": {
+            template: accountCredentialsPartnerEmployeeUpdate,
+            url: "https://sovportal.in/province/login",
+            extraParams: [partnerData.firstName, partnerData.email],
+            subject: "Employee Account Update - Important Information",
+          },
+        };
+        
+        if (roleConfig[roleType]) {
+          const { template, url, extraParams = [], subject } = roleConfig[roleType];
+          const emailContent = template(teamId, firstName, email, password, url, ...extraParams);
+          
+          await sendEmail({
+            to: email,
+            subject: subject, 
+            htmlContent: emailContent,
+          });
+        }
+        
         const tempemail = accountUpdatedTeam(
           existingTeamMember.teamId,
           existingTeamMember.firstName,
@@ -473,10 +530,11 @@ const editTeamMember = asyncHandler(async (req, res) => {
           subject: `Your Portal Account Data Updated Successfully`,
           htmlContent: tempemail,
         });
+
       }
     }
-
     const updatedTeamMember = await existingTeamMember.save();
+
 
     return res
       .status(200)
@@ -484,7 +542,7 @@ const editTeamMember = asyncHandler(async (req, res) => {
         new ApiResponse(
           200,
           updatedTeamMember,
-          "Team member updated successfully"
+          "Profile updated successfully"
         )
       );
   } catch (error) {
@@ -504,16 +562,17 @@ const editTeamMember = asyncHandler(async (req, res) => {
 const softDeleteTeamMember = asyncHandler(async (req, res) => {
   const { teamID } = req.params;
 
-  if (req.user.role !== "0") {
+  if (req.user.role !== "0" ||  req.user.role !== "4" ) {
     return res.status(403).json(new ApiResponse(403, {}, "Unauthorized"));
   }
 
   try {
-    const teamMember = await TeamMember.findOne({ _id: teamID });
+    let ModelCollection =  req.user.role === "0" && req.query.userType === "team" ? TeamMember :  req.user.role === "0" && req.query.userType === "partner" ? Partner  : req.user.role === "4" ? ParntnerTeamMember : null 
+    const teamMember = await ModelCollection.findOne({ _id: teamID });
     if (!teamMember) {
       return res
         .status(404)
-        .json(new ApiResponse(404, {}, "Team member not found"));
+        .json(new ApiResponse(404, {}, "Profile not found"));
     }
 
     teamMember.isDeleted = true;
@@ -543,12 +602,12 @@ const getAllTeamMembers = asyncHandler(async (req, res) => {
     const skip = (page - 1) * limit;
 
     const { role, _id } = req.user;
-    const isPartnerRole = role === "2" && _id;
+    const isPartnerRole = role === "4" && _id;
     const Model = isPartnerRole ? ParntnerTeamMember : TeamMember;
 
     const searchCondition = {
       isDeleted: false,
-      $expr: { $eq: ["$role", isPartnerRole ? "3" : "1"] },
+      $expr: { $eq: ["$role", isPartnerRole ? "5" : "1"] },
     };
 
     if (isPartnerRole) {
@@ -607,7 +666,7 @@ const getAllPartner = asyncHandler(async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const searchCondition = { role: "2", isDeleted: false };
+    const searchCondition = { role: "4", isDeleted: false };
 
     if (req.query.searchQuery) {
       const regex = { $regex: req.query.searchQuery, $options: "i" }; // Case-insensitive search

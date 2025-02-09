@@ -45,8 +45,8 @@ class SocketService {
       socket.join(`USER_${decryptedDetails._id}`);
       console.log(`Socket joined room USER_${decryptedDetails._id}`);
       const shouldJoinAdminRoom = 
-      (decryptedDetails.role === "0" || decryptedDetails.role === "1") ||
-      ((decryptedDetails.role === "2" || decryptedDetails.role === "3") && decryptedDetails.type === "admin");
+      (decryptedDetails.role === "0" || decryptedDetails.role === "1" || decryptedDetails.role === "4" ||decryptedDetails.role === "5" ) 
+      
     
       if (shouldJoinAdminRoom) {
         socket.join("GLOBAL_NOTIFICATION_ALERT_FOR_ADMINS");
@@ -175,8 +175,8 @@ class SocketService {
       });
 
       socket.on("GET_NOTIFICATIONS_FOR_ADMIN", async ({page, limit, country, state}) => {
-        
-        const notifications = await getNotificationsForAdmin(page, limit, country, state);
+          console.log(page, limit, country, state, "test")
+        const notifications = await getNotificationsForAdmin(page, limit, country, state, decryptedDetails?.role);
 
         this.socketServer
         .to(`GLOBAL_NOTIFICATION_ALERT_FOR_ADMINS`)

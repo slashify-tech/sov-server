@@ -519,7 +519,7 @@ const getAllAgentStudent = asyncHandler(async (req, res) => {
   let agentId = req.user.id;
 
   // Check if the user role is authorized
-  if (req.user.role !== "2" && req.user.role !== "0" && req.user.role !== "1") {
+  if (req.user.role !== "2" && req.user.role !== "0" && req.user.role !== "1"&& req.user.role !== "4" && req.user.role !== "5") {
     return res
       .status(403)
       .json(
@@ -614,7 +614,8 @@ const getAllAgentStudent = asyncHandler(async (req, res) => {
 const getAllAgentStudentAdmin = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, searchData } = req.query;
   let agentId = req.query.agentId || undefined;
-  if (role !== "2" && role !== "0" && role !== "1" && role !== "3") {
+  const role = req.user.role
+  if (role !== "4" && role !== "0" && role !== "1" && role !== "5") {
     return res
       .status(403)
       .json(
@@ -709,18 +710,17 @@ const getStudentFormById = asyncHandler(async (req, res) => {
   if (req.user.role === "3") {
     getFormId = studentInformation._id;
   }
-  if (req.user.role === "2" || req.user.role === "0" || req.user.role === "1"  ) {
+  if (req.user.role === "4" || req.user.role === "0" || req.user.role === "1" || req.user.role === "5"|| req.user.role === "2"  ) {
     studentInformation = await StudentInformation.findById(formId);
   }
 
-  // If student information is not found, return 404
   if (!studentInformation) {
     return res
       .status(404)
       .json(new ApiResponse(404, {}, "Student information not found"));
   }
   const studentFormId =
-    req.user.role === "2" || req.user.role === "0" ? formId : getFormId;
+  (req.user.role === "4" || req.user.role === "0" || req.user.role === "1" || req.user.role === "5" || req.user.role === "2" )   ? formId : getFormId;
     
     const visaApplication = await Institution.findOne({
       studentInformationId: studentFormId,
