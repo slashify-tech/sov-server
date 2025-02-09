@@ -185,6 +185,7 @@ class SocketService {
       });
 
       socket.on("GET_NOTIFICATIONS_FOR_ADMIN", async ({page, limit}) => {
+        console.log("GET_NOTIFICATIONS_FOR_ADMIN is called");
         if (!["0", "1"].includes(decryptedDetails.role)) return;
         const notifications = await getNotificationsForAdmin(page, limit);
 
@@ -339,13 +340,14 @@ class SocketService {
       });
 
       socket.on("GET_NOTIFICATIONS_FOR_PARTNER", async ({page, limit}) => {
+        console.log("GET_NOTIFICATIONS_FOR_PARTNER is called");
         if (!["4", "5"].includes(decryptedDetails.role)) return;
         const notifications = await getNotificationsForAdmin(page, limit, decryptedDetails?.country || undefined, decryptedDetails?.state || undefined, decryptedDetails.role);
 
         this.socketServer
         .to(`GLOBAL_NOTIFICATION_ALERT_FOR_PARTNERS`)
         .emit("GET_NOTIFICATIONS_FOR_PARTNER", notifications);
-        emitOnMessage(socket, "GET_NOTIFICATIONS_FOR_PARTNERS", notifications);
+        emitOnMessage(socket, "GET_NOTIFICATIONS_FOR_PARTNER", notifications);
         // console.log("Notification data from admin to agent:", notifications);
       });
     });
