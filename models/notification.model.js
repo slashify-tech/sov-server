@@ -44,7 +44,7 @@ const notificationSchema = new Schema(
       type: Object,
       default: {},
     },
-    isSeenBy: { type: Boolean, required: false},
+    isSeenBy: { type: String, required: false},
     state: { type: String, required: false },
     country: { type: String, required: false }
   },

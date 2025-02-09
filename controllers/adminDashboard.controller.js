@@ -51,7 +51,7 @@ const getTotalAgentsCount = asyncHandler(async (req, res) => {
 
   let totalAgent, activeAgentCount;
 
-  if (location && (role === "2" || role === "3")) {
+  if (location && (role === "4" || role === "5")) {
     const companyAgents = await Company.find(
       { deleted: false, "pageStatus.status": "completed" },
       { agentId: 1 }
@@ -107,7 +107,7 @@ const getTotalStudentCount = asyncHandler(async (req, res) => {
   fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
   let studentCount;
   let activeStudentCount;
-  if ((role === "2" || role === "3") && location) {
+  if ((role === "4" || role === "5") && location) {
     studentCount = await StudentInformation.countDocuments({
       deleted: false,
       "pageStatus.status": "completed",
@@ -362,7 +362,7 @@ const getAllApplications = asyncHandler(async (req, res) => {
   const { residenceAddress, role } = req.user;
   const location = residenceAddress?.state;
 
-  if (role === "2" || role === "3") {
+  if (role === "4" || role === "5") {
     const userIds = await Institution.find({}, "userId").lean();
     const userIdList = userIds.map(({ userId }) => userId);
 
@@ -1275,7 +1275,7 @@ const getTotalApplicationCount = asyncHandler(async (req, res) => {
   const { role, residenceAddress } = req.user;
   const location = residenceAddress?.state;
   const baseMatch = { deleted: false };
-  if ((role === "2" || role === "3") && location) {
+  if ((role === "4" || role === "5") && location) {
     const institutionUsers = await Institution.find({ deleted: false }, { userId: 1 });
     const userIds = institutionUsers.map((inst) => inst.userId);
 
@@ -1547,7 +1547,7 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
   let agentCondition = {};
   let studentCondition = {};
 
-  if (req.user.role === "2" || req.user.role === "3") {
+  if (req.user.role === "4" || req.user.role === "5") {
     if (req.user.residenceAddress?.state) {
       const agentIds = await Company.find({})
         .select("agentId")
@@ -2112,7 +2112,7 @@ const getAllStudents = asyncHandler(async (req, res) => {
 
   let aggregationPipeline = [{ $match: matchFilter }];
 
-  if (role === "2" || role === "3") {
+  if (role === "4" || role === "5") {
     aggregationPipeline.push(
       {
         $lookup: {
@@ -2247,7 +2247,7 @@ const getAllAgent = asyncHandler(async (req, res) => {
 
   let agentFilter = [];
 
-  if (role === "2" || role === "3") {
+  if (role === "4" || role === "5") {
     agentFilter.push(
       {
         $lookup: {
@@ -2704,7 +2704,7 @@ const getAllStudentApplications = asyncHandler(async (req, res) => {
       },
     },
   ];
-  if (role === "2" || role === "3") {
+  if (role === "4" || role === "5") {
     const institutionsLookup = {
       $lookup: {
         from: "institutions",
@@ -2848,7 +2848,7 @@ const getVisaDetails = async (req, res) => {
 };
 
 const getTotalApplicationOverviewForAdmin = asyncHandler(async (req, res) => {
-  if (req.user.role !== "0" && req.user.role !== "1" && req.user.role !== "2") {
+  if (req.user.role !== "0" && req.user.role !== "1" && req.user.role !== "4" && req.user.role !== "5") {
     return res
       .status(403)
       .json(new ApiResponse(403, {}, "You are not authorized to view this information"));
@@ -2871,7 +2871,7 @@ const getTotalApplicationOverviewForAdmin = asyncHandler(async (req, res) => {
   }
 
   // Apply location-based filtering for role 2
-  if ((role === "2" || role === "3") && location) {
+  if ((role === "4" || role === "5") && location) {
     const institutionUsers = await Institution.find({ deleted: false }, { userId: 1 });
     const userIds = institutionUsers.map((inst) => inst.userId);
 
@@ -2940,7 +2940,7 @@ const getTotalUsersCount = asyncHandler(async (req, res) => {
   let agentMatchFilter = { ...matchFilter };
   let studentMatchFilter = { ...matchFilter };
 
-  if ((role === "2" || role === "3") && location) {
+  if ((role === "4" || role === "5") && location) {
     const companyAgents = await Company.find(
       { deleted: false, "pageStatus.status": "completed" },
       { agentId: 1 }
@@ -3035,7 +3035,7 @@ const getApplicationMonthlyCount = asyncHandler(async (req, res) => {
     matchFilter[`${applicationType}.status`] = { $exists: true };
   }
 
-  if ((role === "2" || role === "3") && location) {
+  if ((role === "4" || role === "5") && location) {
     const institutionUsers = await Institution.find({ deleted: false }, { userId: 1 });
     const userIds = institutionUsers.map((inst) => inst.userId);
 

@@ -446,12 +446,13 @@ const editTeamMember = asyncHandler(async (req, res) => {
     profilePicture,
     dateOfJoining,
     password,
-    createdBy
+    createdBy,
+    email
   } = payload;
 
   try {
     // Check if the team member exists
-    let ModelCollection =  req.user.role === "0" && req.query.userType === "team" ? TeamMember :  req.user.role === "0" && req.query.userType === "partner" ? Partner  : req.user.role === "4" ? ParntnerTeamMember : null 
+    const ModelCollection =  req.user.role === "0" && req.query.userType === "team" ? TeamMember :  req.user.role === "0" && req.query.userType === "partner" ? Partner  : req.user.role === "4" ? ParntnerTeamMember : null 
     const existingTeamMember = await ModelCollection.findOne({ _id: teamID });
     if (!existingTeamMember) {
       return res
@@ -477,7 +478,7 @@ const editTeamMember = asyncHandler(async (req, res) => {
     if (payload.email) {
       const newEmail = payload?.email?.toLowerCase().trim();
       if (newEmail !== existingTeamMember.email) {
-        const emailExists = await TeamMember.findOne({ email: newEmail });
+        const emailExists = await ModelCollection.findOne({ email: newEmail });
         if (emailExists) {
           return res
             .status(409)
@@ -486,29 +487,37 @@ const editTeamMember = asyncHandler(async (req, res) => {
         existingTeamMember.email = newEmail;
 
         // Send account update email
+        const teamData = await ModelCollection.find({ createdBy });
+        
+          const teamEmail = teamData.email
         const partnerData = await Partner.findById(createdBy)
         const roleConfig = {
           "1": {
             template: accountUpdatedTeam,
             url: "https://sovportal.in/admin/role/auth/login",
             subject: "Your Portal Account Data Updated Successfully",
+            teamId: teamData.teamId
           },
           "4": {
             template: accountCredentialsPartnerUpdate,
             url: "https://sovportal.in/province/login",
             subject: ":Partner Account Update - Important Information",
+            teamId: teamData.partnerId
           },
           "5": {
             template: accountCredentialsPartnerEmployeeUpdate,
             url: "https://sovportal.in/province/login",
             extraParams: [partnerData.firstName, partnerData.email],
             subject: "Employee Account Update - Important Information",
+            teamId: teamData.teamId
           },
         };
         
-        if (roleConfig[roleType]) {
-          const { template, url, extraParams = [], subject } = roleConfig[roleType];
-          const emailContent = template(teamId, firstName, email, password, url, ...extraParams);
+        if (roleConfig[req.user.role]) {
+          const { template, url, extraParams = [], subject, teamId } = roleConfig[req.user.role];
+          const emailContent = password
+          ? template(teamId, firstName, teamEmail, password, url, ...extraParams)
+          : template(teamId, firstName, teamEmail, url, ...extraParams);
           
           await sendEmail({
             to: email,
@@ -561,12 +570,13 @@ const editTeamMember = asyncHandler(async (req, res) => {
 const softDeleteTeamMember = asyncHandler(async (req, res) => {
   const { teamID } = req.params;
 
-  if (req.user.role !== "0" ||  req.user.role !== "4" ) {
+  if (req.user.role !== "0" &&  req.user.role !== "4") {
     return res.status(403).json(new ApiResponse(403, {}, "Unauthorized"));
   }
-
+console.log(req.user.role, req.query.userType)
   try {
-    let ModelCollection =  req.user.role === "0" && req.query.userType === "team" ? TeamMember :  req.user.role === "0" && req.query.userType === "partner" ? Partner  : req.user.role === "4" ? ParntnerTeamMember : null 
+    const ModelCollection =  req.user.role === "0" && req.query.userType === "team" ? TeamMember :  req.user.role === "0" && req.query.userType === "partner" ? Partner  : req.user.role === "4" ? ParntnerTeamMember : null 
+   console.log(ModelCollection)
     const teamMember = await ModelCollection.findOne({ _id: teamID });
     if (!teamMember) {
       return res
@@ -582,6 +592,7 @@ const softDeleteTeamMember = asyncHandler(async (req, res) => {
       .status(200)
       .json(new ApiResponse(200, {}, "Team member soft deleted successfully"));
   } catch (error) {
+    console.log(error)
     return res
       .status(500)
       .json(
