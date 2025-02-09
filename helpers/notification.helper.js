@@ -13,11 +13,11 @@ export const markAllNotificationsAsSeen = async (recieverId, type, country, stat
     }
     // If country or state are provided, add them to the query
     if (country) {
-      query.country = country;
+      query.country = { $regex: new RegExp(`^${country}$`, "i") }; // Case-insensitive country match
     }
 
     if (state) {
-      query.state = state;
+      query.state = { $regex: new RegExp(`^${state}$`, "i") }; // Case-insensitive state match
     }
 
     let change = {}
@@ -81,9 +81,13 @@ export const getNotificationsForAdmin = async ( page = 1, limit = 10, country, s
     };
 
     if (adminRole === "4" || adminRole === "5") {
-      query.$or = [];
-      if (country) query.$or.push({ country });
-      if (state) query.$or.push({ state });
+      if (country) {
+        query.country = { $regex: new RegExp(`^${country}$`, "i") }; // Case-insensitive country match
+      }
+
+      if (state) {
+        query.state = { $regex: new RegExp(`^${state}$`, "i") }; // Case-insensitive state match
+      }
     }
     
     const notifications = await Notifications.find(query)
@@ -180,11 +184,11 @@ export const countUnseenForAdmin = async (country,state) => {
 
     // If country or state are provided, add them to the query
     if (country) {
-      query.country = country;
+      query.country = { $regex: new RegExp(`^${country}$`, "i") }; // Case-insensitive country match
     }
 
     if (state) {
-      query.state = state;
+      query.state = { $regex: new RegExp(`^${state}$`, "i") }; // Case-insensitive state match
     }
 
     if (!count) {
