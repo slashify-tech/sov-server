@@ -338,13 +338,13 @@ class SocketService {
         // console.log("Notification all read for admin:", notification);
       });
 
-      socket.on("GET_NOTIFICATIONS_FOR_PARTNERS", async ({page, limit}) => {
+      socket.on("GET_NOTIFICATIONS_FOR_PARTNER", async ({page, limit}) => {
         if (!["0", "1"].includes(decryptedDetails.role)) return;
         const notifications = await getNotificationsForAdmin(page, limit, decryptedDetails?.country || undefined, decryptedDetails?.state || undefined, decryptedDetails.role);
 
         this.socketServer
         .to(`GLOBAL_NOTIFICATION_ALERT_FOR_PARTNERS`)
-        .emit("GET_NOTIFICATIONS_FOR_PARTNERS", notifications);
+        .emit("GET_NOTIFICATIONS_FOR_PARTNER", notifications);
         emitOnMessage(socket, "GET_NOTIFICATIONS_FOR_PARTNERS", notifications);
         // console.log("Notification data from admin to agent:", notifications);
       });
