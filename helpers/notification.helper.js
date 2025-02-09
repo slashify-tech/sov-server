@@ -187,7 +187,7 @@ export const countUnseenForAdmin = async (country,state, isPartner) => {
     };
 
     if(isPartner === "partner"){
-      query.isSeenBy = "partner";
+      query.isSeenBy = {$exists : false};
     }else{
       query.status = "unseen"
     }
