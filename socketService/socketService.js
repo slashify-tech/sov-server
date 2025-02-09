@@ -220,7 +220,7 @@ class SocketService {
           .to(`GLOBAL_NOTIFICATION_ALERT_FOR_ADMINS`)
           .emit("GET_UNREAD_COUNT", unreadCount);
         }else {
-          unreadCount = await countUnseenForAdmin(decryptedDetails?.country || undefined, decryptedDetails?.state || undefined);
+          unreadCount = await countUnseenForAdmin(decryptedDetails?.country || undefined, decryptedDetails?.state || undefined, "partner");
           this.socketServer
           .to(`GLOBAL_NOTIFICATION_ALERT_FOR_PARTNERS`)
           .emit("GET_UNREAD_COUNT", unreadCount);
@@ -320,7 +320,7 @@ class SocketService {
       socket.on("NOTIFICATION_SEEN_BY_PARTNER", async () => {
         if (!["4", "5"].includes(decryptedDetails.role)) return;
         // update seen status
-        const notification = await markAllNotificationsAsSeen(undefined, "seen", decryptedDetails?.country || undefined, decryptedDetails?.state || undefined);
+        const notification = await markAllNotificationsAsSeen(undefined, "seen", decryptedDetails?.country || undefined, decryptedDetails?.state || undefined, "partner");
         this.socketServer
         .to(`GLOBAL_NOTIFICATION_ALERT_FOR_PARTNERS`)
         .emit("NOTIFICATION_SEEN_STATUS_UPDATE");
@@ -331,7 +331,7 @@ class SocketService {
       socket.on("NOTIFICATION_ALL_READ_BY_PARTNER", async () => {
         if (!["4", "5"].includes(decryptedDetails.role)) return;
         // update seen status
-        const notification = await markAllNotificationsAsSeen(undefined, "read", decryptedDetails?.country || undefined, decryptedDetails?.state || undefined);
+        const notification = await markAllNotificationsAsSeen(undefined, "read", decryptedDetails?.country || undefined, decryptedDetails?.state || undefined, "partner");
         this.socketServer
         .to(`GLOBAL_NOTIFICATION_ALERT_FOR_PARTNERS`)
         .emit("NOTIFICATION_SEEN_STATUS_UPDATE");
