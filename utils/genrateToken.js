@@ -12,7 +12,6 @@ export const generateTokens = (user) => {
   if(user.state){
     payload.state = user.state;
   }
-  // Generate the access token
   const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
     expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
   });

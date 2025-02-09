@@ -129,7 +129,7 @@ const adminLogin = asyncHandler(async (req, res) => {
   }
 
   let loggedInUser;
-
+  
   if(payload.role === "4"){
     loggedInUser = await Partner.findById(user._id).select("-password");
   }else if(payload.role === "5"){
@@ -137,19 +137,18 @@ const adminLogin = asyncHandler(async (req, res) => {
   }else {
     loggedInUser = await Admin.findById(user._id).select("-password");
   }
-
+  console.log(loggedInUser)
   let userData = {
     id: user._id,
     email: user.email,
     role: payload.role,
   };
-  if(loggedInUser.residenceAddress.country){
+  if(loggedInUser?.residenceAddress?.country){
     userData.country = loggedInUser.residenceAddress.country;
   }
-  if(loggedInUser.residenceAddress.state){
+  if(loggedInUser?.residenceAddress?.state){
     userData.state = loggedInUser.residenceAddress.state;
   }
-
   const { accessToken } = await generateTokens(userData);
 
   const options = {
