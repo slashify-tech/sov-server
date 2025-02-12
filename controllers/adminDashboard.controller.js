@@ -2159,17 +2159,16 @@ const getCompanyData = asyncHandler(async (req, res) => {
       new ApiResponse(200, responseData, "Company data fetched successfully")
     );
 });
-const getAllStudents = asyncHandler(async (req, res) => {
+
+  const getAllStudents = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
   const searchQuery = req.query.searchQuery || "";
   const isApproved = req.query.isApproved;
-   const { role, residenceAddress, regionData } = req.user;
+  const { role, residenceAddress, regionData } = req.user;
   const location = role === "4" ?  residenceAddress?.state  : role === "5" ? regionData : null;
-
   let matchFilter = { deleted: false };
-
   if (searchQuery) {
     matchFilter.$or = [
       { "personalInformation.firstName": { $regex: searchQuery, $options: "i" } },
@@ -2183,58 +2182,62 @@ const getAllStudents = asyncHandler(async (req, res) => {
   if (isApproved) {
     matchFilter["pageStatus.status"] = "completed";
   }
-
   let aggregationPipeline = [{ $match: matchFilter }];
-
   if (role === "4" || role === "5") {
     aggregationPipeline.push(
-      {
-        $addFields: {
-          convertedAgentId: { $toObjectId: "$agentId" } 
+        {
+            $addFields: {
+                convertedAgentId: { $toObjectId: "$agentId" } 
+            }
+        },
+        {
+            $lookup: {
+                from: "agents",
+                localField: "convertedAgentId",
+                foreignField: "_id",
+                as: "agentDetails",
+            },
+        },
+        {
+            $addFields: {
+                agentProvince: { 
+                    $arrayElemAt: ["$agentDetails.companyDetails.province", 0] 
+                }
+            }
+        },
+        {
+            $match: {
+                $or: [
+                    { $and: [{ agentId: { $exists: true, $ne: null } }, { agentProvince: location }] },
+                    { $and: [{ studentId: { $exists: true, $ne: null } }, { "residenceAddress.state": location }] }
+                ],
+            },
         }
-      },
-      {
-        $lookup: {
-          from: "agents",
-          localField: "convertedAgentId",
-          foreignField: "_id",
-          as: "agentDetails",
-        },
-      },
-      {
-        $match: {
-          $or: [
-            { "residenceAddress.state": location },
-            { "agentDetails.companyDetails.province": location },
-          ],
-        },
-      }
     );
-  }
-
-  aggregationPipeline.push(
+}
+aggregationPipeline.push(
     {
-      $project: {
-        _id: 1,
-        "personalInformation.firstName": 1,
-        "personalInformation.lastName": 1,
-        "personalInformation.email": 1,
-        "personalInformation.phone.phone": 1,
-        studentId: 1,
-        stId: 1,
-        agentDetails:1
-      },
+        $project: {
+            _id: 1,
+            "personalInformation.firstName": 1,
+            "personalInformation.lastName": 1,
+            "personalInformation.email": 1,
+            "personalInformation.phone.phone": 1,
+            studentId: 1,
+            stId: 1,
+            agentDetails: 1
+        },
     },
     { $sort: { createdAt: -1 } }
-  );
+);
 
-  // Clone the pipeline to count documents properly
-  let countPipeline = [...aggregationPipeline, { $count: "totalCount" }];
-  
-  const [students, totalCountResult] = await Promise.all([
+// Clone the pipeline to count documents properly
+let countPipeline = [...aggregationPipeline, { $count: "totalCount" }];
+
+const [students, totalCountResult] = await Promise.all([
     StudentInformation.aggregate([...aggregationPipeline, { $skip: skip }, { $limit: limit }]),
     StudentInformation.aggregate(countPipeline),
-  ]);
+]);
 
   const totalDocuments = totalCountResult.length > 0 ? totalCountResult[0].totalCount : 0;
   const totalPages = Math.ceil(totalDocuments / limit);
