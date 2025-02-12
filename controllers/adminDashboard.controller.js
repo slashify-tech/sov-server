@@ -1623,23 +1623,35 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
 
   if (role=== "4" || role=== "5") {
     if (location) {
-      const agentIds = await Company.find({})
-        .select("agentId")
-        .lean();
-      const validAgentIds = [];
+      // const agentIds = await Company.find({})
+      //   .select("agentId")
+      //   .lean();
+      // const validAgentIds = [];
 
-      for (const { agentId } of agentIds) {
-        const agent = await Agent.findById(agentId).select("companyDetails.province").lean();
-        if (agent?.companyDetails.province === location) {
-          validAgentIds.push(agentId);
-        }
-      }
+      // for (const { agentId } of agentIds) {
+      //   const agent = await Agent.findById(agentId).select("companyDetails.province").lean();
+      //   if (agent?.companyDetails.province === location) {
+      //     validAgentIds.push(agentId);
+      //   }
+      // }
 
-      agentCondition.agentId = { $in: validAgentIds };
+      const agentIds  = await Agent.find({
+        "companyDetails.province": { $eq: location },
+        role: "2",
+      }).distinct("_id");
+      let agentStringIds = [...agentIds].map(id => id.toString())
+
+      agentCondition.agentId = { $in: agentStringIds };
       studentCondition.$or = [
-        { "residenceAddress.state": location },
-        { agentId: { $in: validAgentIds } },
+        {
+          $and: [
+            { studentId: { $exists: true } },
+            { "residenceAddress.state": { $regex: location, $options: "i" } }
+          ],
+        },
+        { agentId: { $in: agentStringIds } },
       ];
+      
     }
   }
 
@@ -1712,6 +1724,9 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
       .skip((page - 1) * studentLimit)
       .limit(studentLimit)
       .lean();
+
+
+    console.log(students, studentSearchCondition)
 
     formattedStudents = students.map((student) => ({
       firstName: student.personalInformation?.firstName || "N/A",
