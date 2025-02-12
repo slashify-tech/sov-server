@@ -2570,7 +2570,7 @@ const getAllStudentApplications = asyncHandler(async (req, res) => {
     }
   }
 
-  const aggregatePipeline = [
+  let aggregatePipeline = [
     {
       $lookup: {
         from: "institutions",
@@ -2786,58 +2786,29 @@ const getAllStudentApplications = asyncHandler(async (req, res) => {
     },
   ];
   if (role === "4" || role === "5") {
-    aggregatePipeline.unshift(
-    
-      {
-        $lookup: {
-          from: "institutions",
-          localField: "studentInformationId",
-          foreignField: "_id",
-          as: "institutionData",
-        },
-      },
-   
-      {
-        $unwind: {
-          path: "$institutionData",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      
-      {
-        $addFields: {
-          institutionUserIdObject: { $toObjectId: "$institutionData.userId" },
-        },
-      },
-      {
-        $lookup: {
-          from: "agents",
-          localField: "institutionUserIdObject",
-          foreignField: "_id",
-          as: "matchedAgents",
-        },
-      },
-      {
-        $unwind: {
-          path: "$matchedAgents",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-    
-      {
-        $match: {
-          $or: [
-            { "residenceAddress.state": location }, 
-            { "matchedAgents.companyDetails.province": location },
-          ],
-        },
-      },
-    );
-  }
-  
-  
-  
+    const agentIds = await Agent.find({
+      "companyDetails.province": { $eq: location },
+      role: "2",
+      deleted: false,
+    }).distinct("_id");
 
+    const studentIds = await StudentInformation.find({
+      "studentId" : {$exists : true},
+      "residenceAddress.state": { $eq: location } ,
+      deleted: false,
+    }).distinct("studentId");
+    
+    const combinedIds = [...agentIds].map(id => id.toString());
+
+    aggregatePipeline.unshift({
+      $match: {
+        $or: [
+          { studentId: { $in: studentIds } },
+          { agentId: { $in: combinedIds } },
+        ],
+      },
+    });
+  }
   const result = await StudentInformation.aggregate(aggregatePipeline);
 
   const totalCount = result[0]?.metadata[0]?.totalCount || 0;
