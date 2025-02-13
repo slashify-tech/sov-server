@@ -17,7 +17,7 @@ import { PopularCourse } from "../models/PopularCourseModel.js";
     }));
 
     // Get a list of existing course names from the database
-    const existingCourses = await PopularCourse.find(
+    const existingCourses = await Course.find(
       { courseName: { $in: popularUpdateCourse } },
       { courseName: 1, _id: 0 }
     ).lean();
@@ -32,7 +32,7 @@ import { PopularCourse } from "../models/PopularCourseModel.js";
 
     // Insert only the new courses
     if (newCourses.length > 0) {
-      const insertResult = await PopularCourse.insertMany(newCourses);
+      const insertResult = await Course.insertMany(newCourses);
       console.log("Number of courses inserted:", insertResult.length);
     } else {
       console.log("No new courses to insert. All courses already exist.");

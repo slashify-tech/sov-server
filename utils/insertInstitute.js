@@ -178,7 +178,7 @@ async function updateWebsiteInstitutes() {
   }
 }
 
-updateWebsiteInstitutes();
+// updateWebsiteInstitutes();
 
 
 

@@ -5,4 +5,6 @@ export function generateOtp() {
   }
 
   
-  
+  export function getFirstWord(str) {
+    return str.split(" ")[0] || ""; 
+  }
