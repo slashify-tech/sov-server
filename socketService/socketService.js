@@ -223,7 +223,7 @@ class SocketService {
           unreadCount = await countUnseenForAdmin(decryptedDetails?.country || undefined, decryptedDetails?.state || undefined, "partner");
           this.socketServer
           .to(`GLOBAL_NOTIFICATION_ALERT_FOR_PARTNERS`)
-          .emit("GET_UNREAD_COUNT", {unreadCount, state: decryptedDetails?.state});
+          .emit("GET_UNREAD_COUNT", {unreadCount, state: decryptedDetails?.state?.toLowerCase()});
         }
         emitOnMessage(socket, "GET_UNREAD_COUNT", {unreadCount});
         console.log("GET_UNREAD_COUNT : ", {unreadCount});
