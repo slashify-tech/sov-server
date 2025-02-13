@@ -1340,14 +1340,14 @@ const getTotalApplicationCount = asyncHandler(async (req, res) => {
 
     if (role === "4" || role === "5") {
       const agentIds = await Agent.find({
-        "companyDetails.province": location,
+        "companyDetails.province": { $regex: location, $options: "i" },
         role: "2",
         deleted: false,
       }).distinct("_id");
       
       const studentIds = await StudentInformation.find({
         studentId: { $exists: true },
-        "residenceAddress.state": location,
+        "residenceAddress.state":  { $regex: location, $options: "i" },
         deleted: false,
       }).distinct("studentId");
       
@@ -1366,8 +1366,19 @@ const getTotalApplicationCount = asyncHandler(async (req, res) => {
           ...baseMatch,
           userId: { $in: extractedIds },
         };
+      } else {
+        return res.status(200).json(
+          new ApiResponse(
+            200,
+            {
+              totalCount : 0,
+              pendingCount : 0,
+              approvedCount : 0,
+            },
+            "Application counts retrieved successfully (Location-wise for Role 4 & 5)"
+          )
+        );
       }
-    
 
     }
 
@@ -3030,14 +3041,14 @@ const getTotalApplicationOverviewForAdmin = asyncHandler(async (req, res) => {
 
       if (role === "4" || role === "5") {
         const agentIds = await Agent.find({
-          "companyDetails.province": location,
+          "companyDetails.province": { $regex: location, $options: "i" },
           role: "2",
           deleted: false,
         }).distinct("_id");
         
         const studentIds = await StudentInformation.find({
           studentId: { $exists: true },
-          "residenceAddress.state": location,
+          "residenceAddress.state": { $regex: location, $options: "i" },
           deleted: false,
         }).distinct("studentId");
         
@@ -3057,6 +3068,19 @@ const getTotalApplicationOverviewForAdmin = asyncHandler(async (req, res) => {
             ...match, 
             userId: { $in: extractedIds } 
           }; // Update baseMatch dynamically
+        }else { 
+          return res.status(200).json(
+            new ApiResponse(
+              200,
+              {
+                totalApplications : 0,
+                offerLetterCount : 0,
+                courseFeeApplication : 0,
+                visaCount : 0,
+              },
+              "Application counts fetched successfully"
+            )
+          );
         }
       }
     const totalApplications = await Institution.countDocuments(match);
@@ -3227,14 +3251,14 @@ const getApplicationMonthlyCount = asyncHandler(async (req, res) => {
     if (role === "4" || role === "5") {
     
         const agentIds = await Agent.find({
-          "companyDetails.province": location,
+          "companyDetails.province": { $regex: location, $options: "i" },
           role: "2",
           deleted: false,
         }).distinct("_id");
         
         const studentIds = await StudentInformation.find({
           studentId: { $exists: true },
-          "residenceAddress.state": location,
+          "residenceAddress.state": { $regex: location, $options: "i" },
           deleted: false,
         }).distinct("studentId");
         
@@ -3253,6 +3277,16 @@ const getApplicationMonthlyCount = asyncHandler(async (req, res) => {
             ...matchFilter, 
             userId: { $in: extractedIds } 
           }; 
+        }else { 
+          return res
+          .status(200)
+          .json(
+            new ApiResponse(
+              200,
+              { applicationCounts: [] },
+              "Application monthly count retrieved successfully (Location-wise for Role 4 & 5)"
+            )
+          );
         }
       }
     
