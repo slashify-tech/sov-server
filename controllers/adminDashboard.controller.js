@@ -3091,7 +3091,6 @@ const getTotalApplicationOverviewForAdmin = asyncHandler(async (req, res) => {
           ...match,
           userId: { $in: extractedIds },
         }; // Update baseMatch dynamically
-<<<<<<< Updated upstream
       }else {
         return res.status(200).json(
           new ApiResponse(
@@ -3105,8 +3104,6 @@ const getTotalApplicationOverviewForAdmin = asyncHandler(async (req, res) => {
             "Application counts fetched successfully"
           )
         );
-=======
->>>>>>> Stashed changes
       }
     }
     const totalApplications = await Institution.countDocuments(match);
@@ -3308,7 +3305,6 @@ const getApplicationMonthlyCount = asyncHandler(async (req, res) => {
           ...matchFilter,
           userId: { $in: extractedIds },
         };
-<<<<<<< Updated upstream
       }else {
         return res
         .status(200)
@@ -3319,8 +3315,6 @@ const getApplicationMonthlyCount = asyncHandler(async (req, res) => {
             "Application monthly count retrieved successfully (Location-wise for Role 4 & 5)"
           )
         );
-=======
->>>>>>> Stashed changes
       }
     }
 
