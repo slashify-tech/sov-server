@@ -1631,17 +1631,12 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
 
   if (role === "4" || role === "5") {
     if (location) {
-      const agentIds = await Company.find({}).select("agentId").lean();
-      const validAgentIds = [];
-
-      for (const { agentId } of agentIds) {
-        const agent = await Agent.findById(agentId)
-          .select("companyDetails.province")
-          .lean();
-        if (agent?.companyDetails.province === location) {
-          validAgentIds.push(agentId);
-        }
-      }
+      let agentStringIds = [];
+      const agentIds  = await Agent.find({
+        "companyDetails.province": { $eq: location },
+        role: "2",
+      }).distinct("_id");
+      agentStringIds = [...agentIds].map(id => id.toString());
 
       agentCondition.agentId = { $in: agentStringIds };
       studentCondition.$or = [
