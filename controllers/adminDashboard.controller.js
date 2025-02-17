@@ -41,17 +41,21 @@ import { Withdrawal } from "../models/withdrawal.model.js";
 import { fileURLToPath } from "url";
 import { restoreDeletedStatus } from "../helpers/restoreDeletedStatus.js";
 import { AirTicketing } from "../models/airTicketingModel.js";
+import { Partner } from "../models/Partner.model.js";
+import { Admin } from "../models/admin.model.js";
+import { getFirstWord } from "../utils/commonFuntions.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Get total agents count
 const getTotalAgentsCount = asyncHandler(async (req, res) => {
-  const location = req.user.residenceAddress?.state;
-  const role = req.user.role;
+  const { role, residenceAddress, regionData } = req.user;
+  const location =
+    role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
 
   let totalAgent, activeAgentCount;
 
-  if (location && (role === "2" || role === "3")) {
+  if (location && (role === "4" || role === "5")) {
     const companyAgents = await Company.find(
       { deleted: false, "pageStatus.status": "completed" },
       { agentId: 1 }
@@ -101,17 +105,32 @@ const getTotalAgentsCount = asyncHandler(async (req, res) => {
 
 // Get all students count
 const getTotalStudentCount = asyncHandler(async (req, res) => {
-  const location = req.user.residenceAddress?.state;
-  const role = req.user.role;
+  const { role, residenceAddress, regionData } = req.user;
+  const location =
+    role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
+  const agents = await Agent.find({
+    "companyDetails.province": location,
+  }).select("_id companyDetails.province");
+
+  const agentIds = agents.map((agent) => agent._id.toString());
   const fifteenDaysAgo = new Date();
   fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
   let studentCount;
   let activeStudentCount;
-  if ((role === "2" || role === "3") && location) {
+  if (role === "4" || role === "5") {
     studentCount = await StudentInformation.countDocuments({
       deleted: false,
       "pageStatus.status": "completed",
-      "residenceAddress.state": location,
+
+      $or: [
+        { $and: [{ agentId: { $in: agentIds } }] },
+        {
+          $and: [
+            { studentId: { $exists: true, $ne: null } },
+            { "residenceAddress.state": location },
+          ],
+        },
+      ],
     });
     activeStudentCount = await StudentInformation.countDocuments({
       lastLogin: { $gte: fifteenDaysAgo },
@@ -359,31 +378,18 @@ const getAllApplications = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
   const query = { deleted: false };
   const andConditions = [];
-  const { residenceAddress, role } = req.user;
-  const location = residenceAddress?.state;
 
-  if (role === "2" || role === "3") {
-    const userIds = await Institution.find({}, "userId").lean();
-    const userIdList = userIds.map(({ userId }) => userId);
+  const { residenceAddress, role, regionData } = req.user;
+  const location =
+    role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
 
-    const [students, agents] = await Promise.all([
-      StudentInformation.find({ studentId: { $in: userIdList }, "residenceAddress.state": location }, "studentId").lean(),
-      Company.find({ agentId: { $in: userIdList }, "residenceAddress.state": location }, "agentId").lean(),
-    ]);
-
-    // Step 3: Extract filtered user IDs
-    const filteredUserIds = [
-      ...students.map((s) => s.studentId),
-      ...agents.map((a) => a.agentId),
-    ];
-
-    andConditions.push({ userId: { $in: filteredUserIds } });
-  }
-
+  // Handle status filter
   if (req.query.status) {
     const validStatuses = ["underreview", "completed", "rejected", "approved"];
     if (!validStatuses.includes(req.query.status)) {
-      return res.status(400).json(new ApiResponse(400, {}, "Invalid status filter provided."));
+      return res
+        .status(400)
+        .json(new ApiResponse(400, {}, "Invalid status filter provided."));
     }
     andConditions.push({
       $or: [
@@ -394,6 +400,7 @@ const getAllApplications = asyncHandler(async (req, res) => {
     });
   }
 
+  // Handle search query
   if (req.query.searchQuery) {
     const regex = { $regex: req.query.searchQuery, $options: "i" };
     andConditions.push({
@@ -412,80 +419,157 @@ const getAllApplications = asyncHandler(async (req, res) => {
     });
   }
 
+  // Handle date filter
   if (req.query.date) {
     const exactDate = new Date(req.query.date);
     const startOfDay = new Date(exactDate.setHours(0, 0, 0, 0));
     const endOfDay = new Date(exactDate.setHours(23, 59, 59, 999));
-
     andConditions.push({ createdAt: { $gte: startOfDay, $lte: endOfDay } });
+  }
+  if (role === "4" || role === "5") {
+    const agentIds = await Agent.find({
+      "companyDetails.province": location,
+      role: "2",
+      deleted: false,
+    }).distinct("_id");
+
+    const studentIds = await StudentInformation.find({
+      studentId: { $exists: true },
+      "residenceAddress.state": location,
+      deleted: false,
+    }).distinct("studentId");
+
+    const matchedStudents = await StudentInformation.find({
+      $or: [{ studentId: { $in: studentIds } }, { agentId: { $in: agentIds } }],
+    }).lean();
+
+    const extractedIds = matchedStudents.map((student) =>
+      student.agentId
+        ? student.agentId.toString()
+        : student.studentId.toString()
+    );
+
+    const institutions = await Institution.find({
+      $or: [{ userId: { $in: extractedIds } }],
+      deleted: false,
+    })
+      .select("userId studentInformationId")
+      .lean();
+
+    const institutionUserIds = institutions.map((inst) => inst.userId);
+    const institutionStudentIds = institutions
+      .map((inst) => inst.studentInformationId)
+      .filter(Boolean);
+
+    andConditions.push({
+      $or: [
+        { userId: { $in: institutionUserIds } },
+        { studentInformationId: { $in: institutionStudentIds } },
+      ],
+    });
   }
 
   if (andConditions.length > 0) {
     query.$and = andConditions;
   }
 
-  // Fetch applications in bulk with pagination
   const applications = await Institution.find(query)
     .select("-__v")
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit + 1)
     .lean();
-
+  // console.log(applications)
   const totalApplications = await Institution.countDocuments(query);
+  const partners = await Admin.find({ role: 4 })
+    .select("firstName lastName residenceAddress.state")
+    .lean();
+  const mappedData = new Map();
+  partners.forEach((partner) => {
+    const stateKey = String(partner.residenceAddress?.state || "")
+      .trim()
+      .toLowerCase();
+    const fullName = `${partner.firstName} ${getFirstWord(partner.lastName)}`;
 
-  // Fetch agent & student data in bulk to avoid multiple queries in loop
-  const userIdsInApplications = applications.map((app) => app.userId);
-  const [agents, students] = await Promise.all([
-    Company.find({ agentId: { $in: userIdsInApplications } }).lean(),
-    StudentInformation.find({ studentId: { $in: userIdsInApplications } }).lean(),
-  ]);
+    if (stateKey) {
+      mappedData.set(stateKey, fullName);
+    } 
+  });
 
-  const agentMap = Object.fromEntries(agents.map((a) => [a.agentId, a]));
-  const studentMap = Object.fromEntries(students.map((s) => [s.studentId, s]));
+  const transformedApplications = await Promise.all(
+    applications.map(async (app) => {
+      const userId = app.userId;
+      const userType = app.studentInformationId ? "student" : "agent";
+      const studentMongooseId = app.studentInformationId;
+      const referredBy =
+        mappedData.get(
+          String(app.refferedLocation || "")
+            .trim()
+            .toLowerCase()
+        ) || "Direct";
 
-  const transformedApplications = applications.map((app) => {
-    const userId = app.userId;
-    const agent = agentMap[userId];
-    const student = studentMap[userId];
+      const result = {
+        userId,
+        userType,
+        referredBy,
+        institutionId: app._id,
+        applicationId: app.applicationId,
+        status: null,
+        message: null,
+        agentName: null,
+        institution: null,
+        studentInformationId: studentMongooseId,
+        createdAt: app.teamActivity,
+      };
 
-    const result = {
-      userId,
-      userType: student ? "student" : "agent",
-      institutionId: app._id,
-      applicationId: app.applicationId,
-      status: null,
-      message: null,
-      agentName: agent ? agent.primaryContact?.firstName : null,
-      institution: null,
-      studentInformationId: app.studentInformationId,
-      createdAt: app.teamActivity,
-      customUserId: agent ? agent.agId : student ? student.stId : null,
-      studentId: student ? student.stId : null,
-    };
+      const findAgent = await Company.findOne({ agentId: userId }).lean();
+      const findStudent =
+        !findAgent &&
+        (await StudentInformation.findOne({ studentId: userId }).lean());
 
-    if (app.offerLetter?.personalInformation) {
-      result.fullName = app.offerLetter.personalInformation.fullName;
-      result.type = "offerLetter";
-      result.status = app.offerLetter.status;
-      result.message = app.offerLetter.message;
-      result.institution = app.offerLetter.preferences.institution;
-    } else if (app.courseFeeApplication?.personalDetails) {
-      result.fullName = app.courseFeeApplication.personalDetails.fullName;
-      result.type = "courseFeeApplication";
-      result.status = app.courseFeeApplication.status;
-      result.message = app.courseFeeApplication.message;
-    } else if (app.visa?.personalDetails) {
-      result.fullName = app.visa.personalDetails.fullName;
-      result.country = app.visa.country;
-      result.type = "visa";
-      result.status = app.visa.status;
-      result.message = app.visa.message;
-    }
+      result.customUserId = findAgent
+        ? findAgent.agId
+        : findStudent
+        ? findStudent.stId
+        : null;
 
-    return result.fullName ? result : null;
-  }).filter(Boolean);
+      if (findAgent) {
+        result.agentName = findAgent.primaryContact?.firstName || null;
+      }
 
+      const studentData = await StudentInformation.findOne({
+        _id: studentMongooseId,
+      }).lean();
+      result.studentId = studentData ? studentData.stId : null;
+
+      // Check offerLetter and gic status
+      if (app.offerLetter?.personalInformation) {
+        result.fullName = app.offerLetter.personalInformation.fullName;
+        result.type = "offerLetter";
+        result.status = app.offerLetter.status;
+        result.message = app.offerLetter.message;
+        result.institution = app.offerLetter.preferences.institution;
+      } else if (app.courseFeeApplication?.personalDetails) {
+        result.fullName = app.courseFeeApplication.personalDetails.fullName;
+        result.type = "courseFeeApplication";
+        result.status = app.courseFeeApplication.status;
+        result.message = app.courseFeeApplication.message;
+      } else if (app.visa?.personalDetails) {
+        result.fullName = app.visa.personalDetails.fullName;
+        result.country = app.visa.country;
+        result.type = "visa";
+        result.status = app.visa.status;
+        result.message = app.visa.message;
+      }
+
+      return result.fullName ? result : null;
+    })
+  );
+
+  // Filter out null results
+  const filteredApplications = transformedApplications.filter(Boolean);
+
+  // Pagination logic
   const totalPages = Math.ceil(totalApplications / limit);
 
   res.status(200).json({
@@ -495,20 +579,20 @@ const getAllApplications = asyncHandler(async (req, res) => {
     nextPage: page < totalPages ? page + 1 : null,
     totalPages,
     limit,
-    applications: transformedApplications,
+    applications: filteredApplications,
   });
 });
-
 
 const getAllApplicationsForSubadmin = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
-  const {tokenUser, residenceAddress }= req.user;
-   const location = residenceAddress.state
+  const { tokenUser, residenceAddress, regionData } = req.user;
+  const location =
+    role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
   const { teamId } = req.params;
   let query = {};
- 
+
   const andConditions = [];
 
   if (!teamId && !tokenUser) {
@@ -1272,70 +1356,102 @@ const changeApplicationStatusSubadmin = asyncHandler(async (req, res) => {
 });
 
 const getTotalApplicationCount = asyncHandler(async (req, res) => {
-  const { role, residenceAddress } = req.user;
-  const location = residenceAddress?.state;
-  const baseMatch = { deleted: false };
-  if ((role === "2" || role === "3") && location) {
-    const institutionUsers = await Institution.find({ deleted: false }, { userId: 1 });
-    const userIds = institutionUsers.map((inst) => inst.userId);
+  try {
+    const { role, residenceAddress, regionData } = req.user;
+    const location =
+      role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
+    let baseMatch = { deleted: false };
 
-    const agentUsers = await Agent.find(
-      { _id: { $in: userIds }, "residenceAddress.state": location },
-      { _id: 1 }
+    if (role === "4" || role === "5") {
+      const agentIds = await Agent.find({
+        "companyDetails.province": { $regex: location, $options: "i" },
+        role: "2",
+        deleted: false,
+      }).distinct("_id");
+
+      const studentIds = await StudentInformation.find({
+        studentId: { $exists: true },
+        "residenceAddress.state":  { $regex: location, $options: "i" },
+        deleted: false,
+      }).distinct("studentId");
+
+      const matchedStudents = await StudentInformation.find({
+        $or: [
+          { studentId: { $in: studentIds } },
+          { agentId: { $in: agentIds } },
+        ],
+      }).lean();
+
+      const extractedIds = matchedStudents.map((student) =>
+        student.agentId
+          ? student.agentId.toString()
+          : student.studentId.toString()
+      );
+      if (extractedIds.length > 0) {
+        baseMatch = {
+          ...baseMatch,
+          userId: { $in: extractedIds },
+        };
+      } else {
+        return res.status(200).json(
+          new ApiResponse(
+            200,
+            {
+              totalCount : 0,
+              pendingCount : 0,
+              approvedCount : 0,
+            },
+            "Application counts retrieved successfully (Location-wise for Role 4 & 5)"
+          )
+        );
+      }
+    }
+
+    const totalCount = await Institution.countDocuments({
+      ...baseMatch,
+      $or: [
+        { "offerLetter.status": { $exists: true } },
+        { "visa.status": { $exists: true } },
+        { "courseFeeApplication.status": { $exists: true } },
+      ],
+    });
+
+    const pendingCount = await Institution.countDocuments({
+      ...baseMatch,
+      $or: [
+        { "offerLetter.status": "underreview" },
+        { "visa.status": "underreview" },
+        { "courseFeeApplication.status": "underreview" },
+      ],
+    });
+
+    const approvedCount = await Institution.countDocuments({
+      ...baseMatch,
+      $or: [
+        { "offerLetter.status": "approved" },
+        { "visa.status": "approved" },
+        { "courseFeeApplication.status": "approved" },
+      ],
+    });
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          totalCount,
+          pendingCount,
+          approvedCount,
+        },
+        "Application counts retrieved successfully (Location-wise for Role 4 & 5)"
+      )
     );
-    const agentUserIds = agentUsers.map((agent) => agent._id.toString());
-
-    const studentUsers = await Student.find(
-      { _id: { $in: userIds }, "residenceAddress.state": location },
-      { _id: 1 }
-    );
-    const studentUserIds = studentUsers.map((student) => student._id.toString());
-
-    const matchedUserIds = [...agentUserIds, ...studentUserIds];
-
-    baseMatch.userId = { $in: matchedUserIds };
+  } catch (error) {
+    console.error("Error fetching application counts:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, {}, "Internal server error"));
   }
-
-  const totalCount = await Institution.countDocuments({
-    $or: [
-      { "offerLetter.status": { $exists: true } },
-      { "visa.status": { $exists: true } },
-      { "courseFeeApplication.status": { $exists: true } },
-    ],
-    ...baseMatch,
-  });
-
-  const pendingCount = await Institution.countDocuments({
-    $or: [
-      { "offerLetter.status": "underreview" },
-      { "visa.status": "underreview" },
-      { "courseFeeApplication.status": "underreview" },
-    ],
-    ...baseMatch,
-  });
-
-  const approvedCount = await Institution.countDocuments({
-    $or: [
-      { "offerLetter.status": "approved" },
-      { "visa.status": "approved" },
-      { "courseFeeApplication.status": "approved" },
-    ],
-    ...baseMatch,
-  });
-
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        totalCount,
-        pendingCount,
-        approvedCount,
-      },
-      "Application counts retrieved successfully"
-    )
-  );
 });
-
 
 const getTotalTicketCount = asyncHandler(async (req, res) => {
   const totalCount = await Ticket.countDocuments({ deleted: false });
@@ -1521,7 +1637,9 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const { search, status, date, userType } = req.query;
   let statusCheck = [];
-
+  const { residenceAddress, role, regionData } = req.user;
+  const location =
+    role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
   if (status === "notapproved") {
     statusCheck = ["notapproved", "requestedForReapproval"];
   } else {
@@ -1534,7 +1652,7 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
   let totalStudents = 0;
   let totalPages = 0;
   let totalStudentPages = 0;
-
+  let agentStringIds =[];
   let startOfDay;
   let endOfDay;
 
@@ -1547,37 +1665,39 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
   let agentCondition = {};
   let studentCondition = {};
 
-  if (req.user.role === "2" || req.user.role === "3") {
-    if (req.user.residenceAddress?.state) {
-      const agentIds = await Company.find({})
-        .select("agentId")
-        .lean();
-      const validAgentIds = [];
+  if (role === "4" || role === "5") {
+    if (location) {
+      let agentStringIds = [];
+      const agentIds  = await Agent.find({
+        "companyDetails.province": { $eq: location },
+        role: "2",
+      }).distinct("_id");
+      agentStringIds = [...agentIds].map(id => id.toString());
 
-      for (const { agentId } of agentIds) {
-        const agent = await Agent.findById(agentId).select("residenceAddress.state").lean();
-        if (agent?.residenceAddress?.state === req.user.residenceAddress.state) {
-          validAgentIds.push(agentId);
-        }
-      }
-
-      agentCondition.agentId = { $in: validAgentIds };
+      agentCondition.agentId = { $in: agentStringIds };
       studentCondition.$or = [
-        { "residenceAddress.state": req.user.residenceAddress.state },
-        { agentId: { $in: validAgentIds } },
+        {
+          $and: [
+            { studentId: { $exists: true } },
+            { "residenceAddress.state": { $regex: location, $options: "i" } },
+          ],
+        },
+        { agentId: { $in: agentStringIds } },
       ];
     }
   }
 
   const searchCondition = {
     ...agentCondition,
-    ...(search ? {
-      $or: [
-        { "primaryContact.firstName": new RegExp(search, "i") },
-        { "primaryContact.lastName": new RegExp(search, "i") },
-        { agId: new RegExp(search, "i") },
-      ]
-    } : {}),
+    ...(search
+      ? {
+          $or: [
+            { "primaryContact.firstName": new RegExp(search, "i") },
+            { "primaryContact.lastName": new RegExp(search, "i") },
+            { agId: new RegExp(search, "i") },
+          ],
+        }
+      : {}),
     ...(status ? { "pageStatus.status": { $in: statusCheck } } : {}),
     ...(date && { createdAt: { $gte: startOfDay, $lte: endOfDay } }),
     pageCount: 6,
@@ -1586,13 +1706,15 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
 
   const studentSearchCondition = {
     ...studentCondition,
-    ...(search ? {
-      $or: [
-        { "personalInformation.firstName": new RegExp(search, "i") },
-        { "personalInformation.lastName": new RegExp(search, "i") },
-        { stId: new RegExp(search, "i") },
-      ]
-    } : {}),
+    ...(search
+      ? {
+          $or: [
+            { "personalInformation.firstName": new RegExp(search, "i") },
+            { "personalInformation.lastName": new RegExp(search, "i") },
+            { stId: new RegExp(search, "i") },
+          ],
+        }
+      : {}),
     ...(status ? { "pageStatus.status": { $in: statusCheck } } : {}),
     ...(date && { createdAt: { $gte: startOfDay, $lte: endOfDay } }),
     pageCount: 3,
@@ -1605,7 +1727,9 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
   let agents = [];
   if (userType === "agent" || !userType) {
     agents = await Company.find(searchCondition)
-      .select("primaryContact.firstName primaryContact.lastName agId agentId _id pageStatus createdAt teamActivity")
+      .select(
+        "primaryContact.firstName primaryContact.lastName agId agentId _id pageStatus createdAt teamActivity"
+      )
       .sort({ createdAt: -1 })
       .skip((page - 1) * agentLimit)
       .limit(agentLimit)
@@ -1633,11 +1757,15 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
   let students = [];
   if (userType === "student" || !userType) {
     students = await StudentInformation.find(studentSearchCondition)
-      .select("personalInformation.firstName personalInformation.lastName stId _id pageStatus createdAt teamActivity")
+      .select(
+        "personalInformation.firstName personalInformation.lastName stId _id pageStatus createdAt teamActivity"
+      )
       .sort({ createdAt: -1 })
       .skip((page - 1) * studentLimit)
       .limit(studentLimit)
       .lean();
+
+    // console.log(students, studentSearchCondition);
 
     formattedStudents = students.map((student) => ({
       firstName: student.personalInformation?.firstName || "N/A",
@@ -1650,7 +1778,9 @@ const getAllDataAgentStudent = asyncHandler(async (req, res) => {
       type: "student",
     }));
 
-    totalStudents = await StudentInformation.countDocuments(studentSearchCondition);
+    totalStudents = await StudentInformation.countDocuments(
+      studentSearchCondition
+    );
     totalStudentPages = Math.ceil(totalStudents / studentLimit);
   }
 
@@ -2085,23 +2215,32 @@ const getCompanyData = asyncHandler(async (req, res) => {
       new ApiResponse(200, responseData, "Company data fetched successfully")
     );
 });
+
 const getAllStudents = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
   const searchQuery = req.query.searchQuery || "";
   const isApproved = req.query.isApproved;
-  const { role, residenceAddress } = req.user;
-  const location = residenceAddress?.state;
-
+  const { role, residenceAddress, regionData } = req.user;
+  const location =
+    role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
   let matchFilter = { deleted: false };
-
   if (searchQuery) {
     matchFilter.$or = [
-      { "personalInformation.firstName": { $regex: searchQuery, $options: "i" } },
-      { "personalInformation.lastName": { $regex: searchQuery, $options: "i" } },
+      {
+        "personalInformation.firstName": { $regex: searchQuery, $options: "i" },
+      },
+      {
+        "personalInformation.lastName": { $regex: searchQuery, $options: "i" },
+      },
       { "personalInformation.email": { $regex: searchQuery, $options: "i" } },
-      { "personalInformation.phone.phone": { $regex: searchQuery, $options: "i" } },
+      {
+        "personalInformation.phone.phone": {
+          $regex: searchQuery,
+          $options: "i",
+        },
+      },
       { stId: { $regex: searchQuery, $options: "i" } },
     ];
   }
@@ -2109,30 +2248,49 @@ const getAllStudents = asyncHandler(async (req, res) => {
   if (isApproved) {
     matchFilter["pageStatus.status"] = "completed";
   }
-
   let aggregationPipeline = [{ $match: matchFilter }];
-
-  if (role === "2" || role === "3") {
+  if (role === "4" || role === "5") {
     aggregationPipeline.push(
+      {
+        $addFields: {
+          convertedAgentId: { $toObjectId: "$agentId" },
+        },
+      },
       {
         $lookup: {
           from: "agents",
-          localField: "agentId",
-          foreignField: "agentId",
+          localField: "convertedAgentId",
+          foreignField: "_id",
           as: "agentDetails",
+        },
+      },
+      {
+        $addFields: {
+          agentProvince: {
+            $arrayElemAt: ["$agentDetails.companyDetails.province", 0],
+          },
         },
       },
       {
         $match: {
           $or: [
-            { "residenceAddress.state": location },
-            { "agentDetails.residenceAddress.state": location },
+            {
+              $and: [
+                { agentId: { $exists: true, $ne: null } },
+                { agentProvince: location },
+              ],
+            },
+            {
+              $and: [
+                { studentId: { $exists: true, $ne: null } },
+                { "residenceAddress.state": location },
+              ],
+            },
           ],
         },
       }
     );
   }
-
   aggregationPipeline.push(
     {
       $project: {
@@ -2143,6 +2301,7 @@ const getAllStudents = asyncHandler(async (req, res) => {
         "personalInformation.phone.phone": 1,
         studentId: 1,
         stId: 1,
+        agentDetails: 1,
       },
     },
     { $sort: { createdAt: -1 } }
@@ -2150,13 +2309,18 @@ const getAllStudents = asyncHandler(async (req, res) => {
 
   // Clone the pipeline to count documents properly
   let countPipeline = [...aggregationPipeline, { $count: "totalCount" }];
-  
+
   const [students, totalCountResult] = await Promise.all([
-    StudentInformation.aggregate([...aggregationPipeline, { $skip: skip }, { $limit: limit }]),
+    StudentInformation.aggregate([
+      ...aggregationPipeline,
+      { $skip: skip },
+      { $limit: limit },
+    ]),
     StudentInformation.aggregate(countPipeline),
   ]);
 
-  const totalDocuments = totalCountResult.length > 0 ? totalCountResult[0].totalCount : 0;
+  const totalDocuments =
+    totalCountResult.length > 0 ? totalCountResult[0].totalCount : 0;
   const totalPages = Math.ceil(totalDocuments / limit);
 
   const pagination = {
@@ -2167,9 +2331,15 @@ const getAllStudents = asyncHandler(async (req, res) => {
     totalDocuments,
   };
 
-  return res.status(200).json(
-    new ApiResponse(200, { pagination, data: students }, "Data retrieved successfully")
-  );
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        { pagination, data: students },
+        "Data retrieved successfully"
+      )
+    );
 });
 
 const deleteStudentInformation = asyncHandler(async (req, res) => {
@@ -2237,8 +2407,9 @@ const getAllAgent = asyncHandler(async (req, res) => {
   const skip = (page - 1) * limit;
   const search = req.query.search || "";
   const isApproved = req.query.isApproved;
-  const { role, residenceAddress } = req.user;
-  const location = residenceAddress?.state;
+  const { role, residenceAddress, regionData } = req.user;
+  const location =
+    role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
 
   const baseMatch = {
     deleted: false,
@@ -2247,7 +2418,7 @@ const getAllAgent = asyncHandler(async (req, res) => {
 
   let agentFilter = [];
 
-  if (role === "2" || role === "3") {
+  if (role === "4" || role === "5") {
     agentFilter.push(
       {
         $lookup: {
@@ -2260,7 +2431,7 @@ const getAllAgent = asyncHandler(async (req, res) => {
       { $unwind: { path: "$agentDetails", preserveNullAndEmptyArrays: true } },
       {
         $match: {
-          "agentDetails.residenceAddress.state": location,
+          "agentDetails.companyDetails.province": location,
         },
       }
     );
@@ -2268,7 +2439,7 @@ const getAllAgent = asyncHandler(async (req, res) => {
 
   const pipeline = [
     { $match: baseMatch },
-    ...agentFilter, 
+    ...agentFilter,
     {
       $lookup: {
         from: "agents",
@@ -2291,7 +2462,8 @@ const getAllAgent = asyncHandler(async (req, res) => {
           {
             "agentData.accountDetails.founderOrCeo.phone": {
               $regex: search,
-              $options: "i" },
+              $options: "i",
+            },
           },
           { agId: { $regex: search, $options: "i" } },
         ],
@@ -2425,10 +2597,10 @@ const deleteAgent = asyncHandler(async (req, res) => {
       { $set: { deleted: true } },
       { session }
     );
-    
+
     await AirTicketing.updateMany(
-      {userId : agentId },
-      { $set : { deleted: true } },
+      { userId: agentId },
+      { $set: { deleted: true } },
       { session }
     );
 
@@ -2459,10 +2631,15 @@ const deleteAgent = asyncHandler(async (req, res) => {
 
 const getAllStudentApplications = asyncHandler(async (req, res) => {
   const { searchData, page = 1, limit = 10, submittedBy } = req.query;
-  const {role, residenceAddress} = req.user
-  const location =  residenceAddress?.state
+  const { role, residenceAddress, regionData } = req.user;
+  const location =
+    role === "4"
+      ? residenceAddress?.state
+      : role === "5"
+      ? regionData
+      : undefined;
   const searchQuery = searchData ? String(searchData) : undefined;
-  const skip = (page - 1) * limit; 
+  const skip = (page - 1) * limit;
 
   let filter = searchQuery
     ? {
@@ -2490,7 +2667,7 @@ const getAllStudentApplications = asyncHandler(async (req, res) => {
     }
   }
 
-  const aggregatePipeline = [
+  let aggregatePipeline = [
     {
       $lookup: {
         from: "institutions",
@@ -2499,6 +2676,7 @@ const getAllStudentApplications = asyncHandler(async (req, res) => {
         as: "institutions",
       },
     },
+
     {
       $unwind: {
         path: "$institutions",
@@ -2704,30 +2882,30 @@ const getAllStudentApplications = asyncHandler(async (req, res) => {
       },
     },
   ];
-  if (role === "2" || role === "3") {
-    const institutionsLookup = {
-      $lookup: {
-        from: "institutions",
-        localField: "userId",
-        foreignField: "userId",
-        as: "institutionData",
-      },
-    };
+  if (role === "4" || role === "5") {
+    const agentIds = await Agent.find({
+      "companyDetails.province": { $eq: location },
+      role: "2",
+      deleted: false,
+    }).distinct("_id");
 
-    const institutionsMatch = {
+    const studentIds = await StudentInformation.find({
+      studentId: { $exists: true },
+      "residenceAddress.state": { $eq: location },
+      deleted: false,
+    }).distinct("studentId");
+
+    const combinedIds = [...agentIds].map((id) => id.toString());
+
+    aggregatePipeline.unshift({
       $match: {
-        $expr: {
-          $and: [
-            { $ne: ["$institutionData", []] },
-            { $eq: ["$institutionData.residenceAddress.state", location] },
-          ],
-        },
+        $or: [
+          { studentId: { $in: studentIds } },
+          { agentId: { $in: combinedIds } },
+        ],
       },
-    };
-
-    aggregatePipeline.unshift(institutionsLookup); // Insert lookup at the beginning
-    aggregatePipeline.push(institutionsMatch); // Push match at the end
-  } 
+    });
+  }
   const result = await StudentInformation.aggregate(aggregatePipeline);
 
   const totalCount = result[0]?.metadata[0]?.totalCount || 0;
@@ -2848,118 +3026,174 @@ const getVisaDetails = async (req, res) => {
 };
 
 const getTotalApplicationOverviewForAdmin = asyncHandler(async (req, res) => {
-  if (req.user.role !== "0" && req.user.role !== "1" && req.user.role !== "2") {
+  try {
+    const { type, year, month } = req.query;
+    const { role, residenceAddress, regionData } = req.user;
+
+    const location =
+      role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
+
+    if (role !== "0" && role !== "1" && role !== "4" && role !== "5") {
+      return res
+        .status(403)
+        .json(
+          new ApiResponse(
+            403,
+            {},
+            "You are not authorized to view this information"
+          )
+        );
+    }
+
+    let match = {
+      ...(type && type !== "all"
+        ? { [`${type}.status`]: { $exists: true } }
+        : {}),
+      deleted: false,
+    };
+
+    // Date filtering
+    if (year && month) {
+      const startDate = new Date(`${year}-${month}-01T00:00:00Z`);
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 1);
+      match.createdAt = { $gte: startDate, $lt: endDate };
+    }
+
+    if (role === "4" || role === "5") {
+      const agentIds = await Agent.find({
+        "companyDetails.province": location,
+        role: "2",
+        deleted: false,
+      }).distinct("_id");
+
+      const studentIds = await StudentInformation.find({
+        studentId: { $exists: true },
+        "residenceAddress.state": location,
+        deleted: false,
+      }).distinct("studentId");
+
+      const matchedStudents = await StudentInformation.find({
+        $or: [
+          { studentId: { $in: studentIds } },
+          { agentId: { $in: agentIds } },
+        ],
+      }).lean();
+
+      const extractedIds = matchedStudents.map((student) =>
+        student.agentId
+          ? student.agentId.toString()
+          : student.studentId.toString()
+      );
+
+      if (extractedIds.length > 0) {
+        match = {
+          ...match,
+          userId: { $in: extractedIds },
+        }; // Update baseMatch dynamically
+      }else {
+        return res.status(200).json(
+          new ApiResponse(
+            200,
+            {
+              totalApplications : 0,
+              offerLetterCount : 0,
+              courseFeeApplication : 0,
+              visaCount : 0,
+            },
+            "Application counts fetched successfully"
+          )
+        );
+      }
+    }
+    const totalApplications = await Institution.countDocuments(match);
+
+    const offerLetterCount = await Institution.countDocuments({
+      ...match,
+      "offerLetter.status": { $exists: true },
+    });
+
+    const courseFeeApplication = await Institution.countDocuments({
+      ...match,
+      "courseFeeApplication.status": { $exists: true },
+    });
+
+    const visaCount = await Institution.countDocuments({
+      ...match,
+      "visa.status": { $exists: true },
+    });
+
+    return res.status(200).json(
+      new ApiResponse(
+        200,
+        {
+          totalApplications,
+          offerLetterCount,
+          courseFeeApplication,
+          visaCount,
+        },
+        "Application counts fetched successfully"
+      )
+    );
+  } catch (error) {
+    console.error("Error fetching application overview:", error);
     return res
-      .status(403)
-      .json(new ApiResponse(403, {}, "You are not authorized to view this information"));
+      .status(500)
+      .json(new ApiResponse(500, {}, "Internal server error"));
   }
-
-  const { type, year, month } = req.query;
-  const { role, residenceAddress } = req.user;
-  const location = residenceAddress?.state;
-
-  const match = {
-    ...(type && type !== "all" ? { [`${type}.status`]: { $exists: true } } : {}),
-    deleted: false,
-  };
-
-  if (year && month) {
-    const startDate = new Date(`${year}-${month}-01T00:00:00Z`);
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + 1);
-    match.createdAt = { $gte: startDate, $lt: endDate };
-  }
-
-  // Apply location-based filtering for role 2
-  if ((role === "2" || role === "3") && location) {
-    const institutionUsers = await Institution.find({ deleted: false }, { userId: 1 });
-    const userIds = institutionUsers.map((inst) => inst.userId);
-
-    const agentUsers = await Agent.find(
-      { _id: { $in: userIds }, "residenceAddress.state": location },
-      { _id: 1 }
-    );
-    const agentUserIds = agentUsers.map((agent) => agent._id.toString());
-
-    const studentUsers = await Student.find(
-      { _id: { $in: userIds }, "residenceAddress.state": location },
-      { _id: 1 }
-    );
-    const studentUserIds = studentUsers.map((student) => student._id.toString());
-
-    const matchedUserIds = [...agentUserIds, ...studentUserIds];
-
-    match.userId = { $in: matchedUserIds };
-  }
-
-  const totalApplications = await Institution.countDocuments(match);
-
-  const offerLetterCount = await Institution.countDocuments({
-    ...match,
-    "offerLetter.status": { $exists: true },
-  });
-
-  const courseFeeApplication = await Institution.countDocuments({
-    ...match,
-    "courseFeeApplication.status": { $exists: true },
-  });
-
-  const visaCount = await Institution.countDocuments({
-    ...match,
-    "visa.status": { $exists: true },
-  });
-
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      {
-        totalApplications,
-        offerLetterCount,
-        courseFeeApplication,
-        visaCount,
-      },
-      "Application counts fetched successfully"
-    )
-  );
 });
-
 
 const getTotalUsersCount = asyncHandler(async (req, res) => {
   const { year, userType } = req.query;
-  const { role, residenceAddress } = req.user;
-  const location = residenceAddress?.state;
+  const { role, residenceAddress, regionData } = req.user;
+  const location =
+    role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
 
   const matchFilter = { deleted: false, "pageStatus.status": "completed" };
 
   if (year) {
-    const startOfYear = new Date(`${year}-01-01`);
-    const endOfYear = new Date(`${year}-12-31`);
+    const startOfYear = new Date(Date.UTC(year, 0, 1)); // 2025-01-01T00:00:00.000Z
+    const endOfYear = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999)); // 2025-12-31T23:59:59.999Z
     matchFilter.createdAt = { $gte: startOfYear, $lte: endOfYear };
   }
 
   let agentMatchFilter = { ...matchFilter };
   let studentMatchFilter = { ...matchFilter };
 
-  if ((role === "2" || role === "3") && location) {
-    const companyAgents = await Company.find(
-      { deleted: false, "pageStatus.status": "completed" },
-      { agentId: 1 }
-    );
-    const agentIds = companyAgents.map((company) => company.agentId);
+  if (role === "4" || role === "5") {
+    const agents = await Agent.find({
+      "companyDetails.province": location,
+    }).select("_id");
+    const agentIds = agents.map((agent) => agent._id);
+    const agentUsers = await Company.aggregate([
+      {
+        $lookup: {
+          from: "agents",
+          localField: "agentId",
+          foreignField: "_id",
+          as: "companyInfo",
+        },
+      },
+      { $match: { "companyInfo.companyDetails.province": location } },
 
-    const agentUsers = await Agent.find(
-      { _id: { $in: agentIds }, "residenceAddress.state": location },
-      { _id: 1 }
-    );
-    const filteredAgentIds = agentUsers.map((agent) => agent._id.toString());
+      { $project: { _id: 1 } },
+    ]);
+    const filteredAgentIds = agentUsers.map((agent) => agent._id);
 
-    const studentUsers = await Student.find(
-      { "residenceAddress.state": location },
-      { _id: 1 }
-    );
-    const filteredStudentIds = studentUsers.map((student) => student._id.toString());
+    const studentUsers = await StudentInformation.find({
+      $or: [
+        { $and: [{ agentId: { $in: agentIds } }] },
+        {
+          $and: [
+            { studentId: { $exists: true, $ne: null } },
+            { "residenceAddress.state": location },
+          ],
+        },
+      ],
+    }).select("_id");
 
-    // 4. Apply location-based filtering
+    const filteredStudentIds = studentUsers.map((student) => student._id);
+
     agentMatchFilter._id = { $in: filteredAgentIds };
     studentMatchFilter._id = { $in: filteredStudentIds };
   }
@@ -2982,7 +3216,7 @@ const getTotalUsersCount = asyncHandler(async (req, res) => {
     },
     { $sort: { year: 1, month: 1 } },
   ]);
-
+  // console.log(agentMonthlyCounts)
   const studentMonthlyCounts = await StudentInformation.aggregate([
     { $match: studentMatchFilter },
     {
@@ -3014,81 +3248,114 @@ const getTotalUsersCount = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, monthlyCounts, "User monthly count retrieved successfully"));
+    .json(
+      new ApiResponse(
+        200,
+        monthlyCounts,
+        "User monthly count retrieved successfully"
+      )
+    );
 });
-
 
 const getApplicationMonthlyCount = asyncHandler(async (req, res) => {
-  const { year, applicationType } = req.query;
-  const { role, residenceAddress } = req.user;
-  const location = residenceAddress?.state;
-  
-  const matchFilter = { deleted: false };
+  try {
+    const { year, applicationType } = req.query;
+    const { role, residenceAddress, regionData } = req.user;
+    const location =
+      role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
+    let matchFilter = { deleted: false };
 
-  if (year) {
-    const startOfYear = new Date(`${year}-01-01`);
-    const endOfYear = new Date(`${year}-12-31`);
-    matchFilter.createdAt = { $gte: startOfYear, $lte: endOfYear };
-  }
+    if (year) {
+      const startOfYear = new Date(`${year}-01-01`);
+      const endOfYear = new Date(`${year}-12-31`);
+      matchFilter.createdAt = { $gte: startOfYear, $lte: endOfYear };
+    }
 
-  if (applicationType) {
-    matchFilter[`${applicationType}.status`] = { $exists: true };
-  }
+    if (applicationType) {
+      matchFilter[`${applicationType}.status`] = { $exists: true };
+    }
 
-  if ((role === "2" || role === "3") && location) {
-    const institutionUsers = await Institution.find({ deleted: false }, { userId: 1 });
-    const userIds = institutionUsers.map((inst) => inst.userId);
+    if (role === "4" || role === "5") {
+      const agentIds = await Agent.find({
+        "companyDetails.province": location,
+        role: "2",
+        deleted: false,
+      }).distinct("_id");
 
-    const agentUsers = await Agent.find(
-      { _id: { $in: userIds }, "residenceAddress.state": location },
-      { _id: 1 }
-    );
-    const agentUserIds = agentUsers.map((agent) => agent._id.toString());
+      const studentIds = await StudentInformation.find({
+        studentId: { $exists: true },
+        "residenceAddress.state": location,
+        deleted: false,
+      }).distinct("studentId");
 
-    const studentUsers = await Student.find(
-      { _id: { $in: userIds }, "residenceAddress.state": location },
-      { _id: 1 }
-    );
-    const studentUserIds = studentUsers.map((student) => student._id.toString());
+      const matchedStudents = await StudentInformation.find({
+        $or: [
+          { studentId: { $in: studentIds } },
+          { agentId: { $in: agentIds } },
+        ],
+      }).lean();
 
-    const matchedUserIds = [...agentUserIds, ...studentUserIds];
+      const extractedIds = matchedStudents.map((student) =>
+        student.agentId
+          ? student.agentId.toString()
+          : student.studentId.toString()
+      );
+      if (extractedIds.length > 0) {
+        matchFilter = {
+          ...matchFilter,
+          userId: { $in: extractedIds },
+        };
+      }else {
+        return res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            { applicationCounts: [] },
+            "Application monthly count retrieved successfully (Location-wise for Role 4 & 5)"
+          )
+        );
+      }
+    }
 
-    matchFilter.userId = { $in: matchedUserIds };
-  }
-
-  const applicationMonthlyCounts = await Institution.aggregate([
-    { $match: matchFilter },
-    {
-      $group: {
-        _id: {
-          year: { $year: "$createdAt" },
-          month: { $month: "$createdAt" },
-          type: `$${applicationType}.type`,
+    const applicationMonthlyCounts = await Institution.aggregate([
+      { $match: matchFilter },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+          },
+          count: { $sum: 1 },
         },
-        count: { $sum: 1 },
       },
-    },
-    {
-      $project: {
-        _id: 0,
-        year: "$_id.year",
-        month: "$_id.month",
-        applicationType: "$_id.type",
-        count: 1,
+      {
+        $project: {
+          _id: 0,
+          year: "$_id.year",
+          month: "$_id.month",
+          count: 1,
+        },
       },
-    },
-    { $sort: { year: 1, month: 1 } },
-  ]);
+      { $sort: { year: 1, month: 1 } },
+    ]);
 
-  return res.status(200).json(
-    new ApiResponse(
-      200,
-      { applicationCounts: applicationMonthlyCounts },
-      "Application monthly count retrieved successfully"
-    )
-  );
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          { applicationCounts: applicationMonthlyCounts },
+          "Application monthly count retrieved successfully (Location-wise for Role 4 & 5)"
+        )
+      );
+  } catch (error) {
+    console.error("Error fetching application monthly counts:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, {}, "Internal server error"));
+  }
 });
-
 
 const downloadAllStudentsAsCSV = asyncHandler(async (req, res) => {
   try {

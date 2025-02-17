@@ -46,10 +46,14 @@ const partnerTeamSchema = new Schema(
       type: String,
       required: true,
     },
+    regionData:{
+      type: String,
+      required: true,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-export const ParntnerTeamMember = Admin.discriminator("3", partnerTeamSchema);
+export const ParntnerTeamMember = Admin.discriminator("5", partnerTeamSchema);
