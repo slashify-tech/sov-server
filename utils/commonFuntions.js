@@ -7,4 +7,6 @@ export function generateOtp() {
     return str.split(" ")[0] || ""; 
   }
   
-  
+  export function getFirstWord(str) {
+    return str.split(" ")[0] || ""; 
+  }
