@@ -362,7 +362,7 @@ const getAllInstitutes = asyncHandler(async (req, res) => {
     matchQuery.inTake = { $elemMatch: { $regex: regex } };
   }
 
-if (popularCourses) {
+  if (popularCourses) {
     const sanitizedPopularCourses = popularCourses
       .trim()
       .replace(/\u00A0/g, " ") 
