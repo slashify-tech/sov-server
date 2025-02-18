@@ -3,7 +3,9 @@ export function generateOtp() {
     const otp = Math.floor(1000 + Math.random() * 9000);
     return otp.toString(); // Return as a string if needed
   }
-
+  export function getFirstWord(str) {
+    return str.split(" ")[0] || ""; 
+  }
   
   export function getFirstWord(str) {
     return str.split(" ")[0] || ""; 
