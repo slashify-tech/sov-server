@@ -7,3 +7,4 @@ export function generateOtp() {
     return str.split(" ")[0] || ""; 
   }
   
+ 

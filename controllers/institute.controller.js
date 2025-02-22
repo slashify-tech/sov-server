@@ -351,7 +351,7 @@ const getAllInstitutes = asyncHandler(async (req, res) => {
     };
   }
 
- if (instituteName) {
+  if (instituteName) {
     const sanitizedInstituteName = instituteName
     .trim()
     .replace(/\u00A0/g, " ") 
