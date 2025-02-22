@@ -2225,7 +2225,7 @@ const getAllStudents = asyncHandler(async (req, res) => {
   const { role, residenceAddress, regionData } = req.user;
   const location =
     role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
-  let matchFilter = { deleted: false };
+ let matchFilter = { deleted: false, updatedAt:-1 };
   if (searchQuery) {
     matchFilter.$or = [
       {
@@ -2411,10 +2411,12 @@ const getAllAgent = asyncHandler(async (req, res) => {
   const location =
     role === "4" ? residenceAddress?.state : role === "5" ? regionData : null;
 
-  const baseMatch = {
+ const baseMatch = {
     deleted: false,
     ...(isApproved && { "pageStatus.status": "completed" }),
+     updatedAt: -1
   };
+
 
   let agentFilter = [];
 
