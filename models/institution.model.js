@@ -14,7 +14,7 @@ const PersonalInformationSchema = new Schema({
     fullName: { type: String, required: true },
     email: { type: String, required: true },
     phoneNumber: { type: String, required: true },
-    address: AddressSchema,  // Use Address schema for personalInformation and gic.personalDetails
+    address: AddressSchema, 
 });
 
 // Schema for Education Details

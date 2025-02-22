@@ -2873,6 +2873,7 @@ const getAllStudentApplications = asyncHandler(async (req, res) => {
     {
       $match: filter,
     },
+    { $sort: { createdAt: -1 } },
     {
       $facet: {
         metadata: [{ $count: "totalCount" }],
