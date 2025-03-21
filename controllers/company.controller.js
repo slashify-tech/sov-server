@@ -373,7 +373,7 @@ const registerReferences = asyncHandler(async (req, res) => {
   await company.save();
 
   // Retrieve the updated references (only the references field, excluding `_id`)
-  const updatedCompany = await Company.findById(company._id).select("references -_id pageCount");
+  const updatedCompany = await Company.findById(company._id).select("references agId -_id pageCount");
 
   return res.status(200).json(new ApiResponse(200, updatedCompany, "References updated successfully"));
 });
