@@ -3,7 +3,7 @@ import { addInstitute, deleteInstitute, downloadAllInstitutesAsCSV, editInstitut
 import { verifyAdmin } from "../middlewares/auth.middleware.js";
 const router = Router();
 
-router.route("/all").get( getAllInstitute);
+router.route("/all").get( getAllInstitutes);
 router.route("/all-institute").get( getInstitutes);
 router.route("/get-all-institute").get( getAllInstitutes);
 router.route("/one-institute").get( getInstituteById);
