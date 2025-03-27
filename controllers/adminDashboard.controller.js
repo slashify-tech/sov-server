@@ -847,7 +847,7 @@ const changeApplicationStatus = asyncHandler(async (req, res) => {
       );
       await sendEmail({
         to: email,
-        subject: "Your Offer Letter is Approved Proceed with Payment",
+          subject: `Application Review Update`,
         htmlContent: temp,
       });
       if (findAgent) {
@@ -862,7 +862,7 @@ const changeApplicationStatus = asyncHandler(async (req, res) => {
         );
         await sendEmail({
           to: findAgent.accountDetails.founderOrCeo.email,
-          subject: `Offer Letter Rejected for Action Required`,
+        subject: `Application Review Update`,
           htmlContent: temp,
         });
       }
