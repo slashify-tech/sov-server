@@ -35,4 +35,4 @@ jobs:
     # - name: Test printing your secret (Remove this step in production)
     #   run: |
     #       cat .env
-    - run: pm2 restart backend
+    - run: pm2 restart app
