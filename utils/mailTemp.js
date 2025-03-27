@@ -126,16 +126,14 @@ export const studentOfferLetterApprovedTemp = (
 ) => {
   return `<p>Dear <strong>${firstName}</strong>,</p>
 
-<p>Congratulations! We are excited to inform you that your offer letter from <strong>${collegeName}</strong> in <strong>${country}</strong> for the <strong>${courseName}</strong> program has been approved.
-</p>
+<p>We are pleased to inform you that the initial review of your application has been successfully completed. Your application has now been forwarded to the evaluation team for a comprehensive academic assessment.</p>
 
-<p>To secure your spot in this program, please proceed with the payment for the offer letter as soon as possible.</p>
 
-<p><strong>Next Steps:</strong></p>
-<ul>
-  <li><strong>Review the Offer Letter:</strong> You can access your approved offer letter in the portal.</li>
-  <li><strong>Complete the Payment:</strong> For payment procedure. Our team will contact you to confirm your admission.</li>
-</ul>
+
+<p>Once the evaluation process is complete, either team SOV Portal or the University will contact you with an update on the admissions decision. Should any additional documents be required for further review, our admissions team will reach out to you directly with the necessary instructions.</p>
+
+<p>For any further steps related to your application, our team will be in touch shortly. Please note that this is an automated email, and no response is required.</p>
+
 
 <p>If you need assistance with the payment process or have any questions, please contact our support team at <a href="mailto:support@sovportal.in">support@sovportal.in</a>.</p>
 
@@ -190,24 +188,14 @@ export const agentOfferLetterApproved = (
 ) => {
   return `<p>Dear <strong>${agentFirstName}</strong>,</p>
 
-<p>We are pleased to inform you that the offer letter for <strong>${studentName}</strong> [<strong>${studentId} </strong>] has been approved by <strong>${collegeName}</strong> in <strong>${country}</strong> for the <strong>${courseName}</strong> program.</p>
+<p>We are pleased to inform you that the initial review of your application has been successfully completed. Your application has now been forwarded to the evaluation team for a comprehensive academic assessment.</p>
 
-<p><strong>Student Details:</strong></p>
-<ul>
-  <li><strong>Student ID:</strong> ${studentId}</li>
-  <li><strong>Student Name:</strong> ${studentName}</li>
-  <li><strong>College Name:</strong> ${collegeName}</li>
-  <li><strong>Course Name:</strong> ${courseName}</li>
-  <li><strong>Country:</strong> ${country}</li>
-</ul>
 
-<p>You can now log in to your agent portal and access the approved offer letter. Please follow the next steps, including for payment procedure to the student or any other necessary actions. Our team will contact you.</p>
 
-<p><strong>Next Steps:</strong></p>
-<ul>
-  <li><strong>Access the Offer Letter:</strong> You can download and review the offer letter through your agent dashboard.</li>
-  <li><strong>Notify the Student:</strong> Ensure that the student is informed about the approval and take the next steps, including the payment for the offer letter, if required.</li>
-</ul>
+<p>Once the evaluation process is complete, either team SOV Portal or the University will contact you with an update on the admissions decision. Should any additional documents be required for further review, our admissions team will reach out to you directly with the necessary instructions.</p>
+
+<p>For any further steps related to your application, our team will be in touch shortly. Please note that this is an automated email, and no response is required.</p>
+
 
 <p>If you have any questions or need further assistance, please contact us at <a href="mailto:support@sovportal.in">support@sovportal.in</a>.</p>
 
