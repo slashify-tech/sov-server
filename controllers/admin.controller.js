@@ -1,7 +1,7 @@
 import { Admin } from "../models/admin.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { generateTokens } from "../utils/genrateToken.js";
+import { generateTokens } from "../utils/genrateToken.js"
 import {
   changeEmailSchema,
   changePasswordSchema,
